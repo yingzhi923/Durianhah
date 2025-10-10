@@ -83,26 +83,6 @@ For the demo shown in class, please go to https://github.com/Quentin2050267/Pred
     npm run dev
     ```
 
-## Local test code
-To test buyByAmount, run 
-    ```
-    brownie run deply_amount.py  
-    ```
-in the contract file
-    
-## Team Contribution
-Neil Heinrich Braun: Responsible for implementing the quadratic voting logic by coding the contract and integrating it with the AMM algorithm that was developed by Weiqi, and modifying certain sections of the front-end accordingly.
-
-Qin Tian: Responsible for implementing the entire codebase and github readme except for the AMM and Quadratic Voting logic in the smart contract, including developing the whole frontend, backend, and the core solidity contracts.
-
-Pimsupa Ariyapoolpong: Co-wrote the project proposal and slides, while conducting extensive user testing and usability analysis to identify pain points so as to enhance platform’s functionality. 
-
-Rajkumar Muthachari: Focused on implementing a secure front-end deployment, enabling the platform to be hosted on a domain and made publicly accessible.
-
-Suhut Mickey Lin: Co-wrote the project proposal and slides, while leading user feedback efforts, including collecting feedback from users to refine the platform’s potential appeal.
-
-Weiqi Pan: Developed the Automated Market Maker (AMM) functionality so as to integrate with the QV logic that was coded by Neil and executed front-end modifications to align with the platform's requirements.
-
 
 ## Glimpse
 <img width="1470" alt="image" src="https://github.com/user-attachments/assets/7578d0a8-898c-485c-8cae-de33313a18c9" />
