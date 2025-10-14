@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "./ui/button";
+import { Input } from "./ui/input";
 import { useState, useEffect } from "react";
 import { useActiveAccount, useSendAndConfirmTransaction } from "thirdweb/react";
 import { prepareContractCall, readContract } from "thirdweb";
@@ -8,43 +9,33 @@ import { Loader2, Shield, CheckCircle, XCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supplyChainContract } from "@/constants/contract";
 
-// 修正的角色常量 - 确保每个都是完整的 64 位十六进制（32 字节）
-const DEMO_ROLES = {
-  // ADMIN_ROLE = DEFAULT_ADMIN_ROLE = 0x00...00 (64个0)
-  ADMIN_ROLE: "0x0000000000000000000000000000000000000000000000000000000000000000",
-  
-  // 其他角色使用 keccak256 哈希值的格式，填充到 64 位
-  FARMER_ROLE: "0x526f6c652e4641524d45520000000000000000000000000000000000000000000",
-  PACKER_ROLE: "0x526f6c652e5041434b45520000000000000000000000000000000000000000000",
-  LOGISTICS_ROLE: "0x526f6c652e4c4f474953544943530000000000000000000000000000000000000",
-  RETAIL_ROLE: "0x526f6c652e52455441494c000000000000000000000000000000000000000000"
-};
+// 使用 types/index.ts 中定义的角色常量
+import { ROLES } from "@/types";
 
-// 或者使用正确的 keccak256 计算值（推荐）
-const CORRECT_ROLES = {
-  ADMIN_ROLE: "0x0000000000000000000000000000000000000000000000000000000000000000",
-  FARMER_ROLE: "0xa49807205ce4d355092ef5a8a18f56e8913cf4a201fbe287825b095693c21775",
-  PACKER_ROLE: "0x7b7977428c36c1b7bb1b3a7e7e5b6b5a7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f",
-  LOGISTICS_ROLE: "0x9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d9e8f7a6b5c4d3e2f1a0b9c8",
-  RETAIL_ROLE: "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2"
-};
+const DEMO_ROLES = ROLES;
 
 interface RoleStatus {
   [key: string]: boolean;
 }
+
+// 验证以太坊地址格式
+const isValidAddress = (address: string): boolean => {
+  return /^0x[a-fA-F0-9]{40}$/.test(address);
+};
 
 export default function RoleManager() {
   const account = useActiveAccount();
   const { mutateAsync: mutateTransaction } = useSendAndConfirmTransaction();
   const { toast } = useToast();
 
+  const [targetAddress, setTargetAddress] = useState("");
   const [roleStatus, setRoleStatus] = useState<RoleStatus>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isGrantingRoles, setIsGrantingRoles] = useState(false);
 
-  // 检查当前账户的所有角色
-  const checkAllRoles = async () => {
-    if (!account?.address) return;
+  // 检查目标地址的所有角色
+  const checkAllRoles = async (address: string) => {
+    if (!address || !isValidAddress(address)) return;
     
     setIsLoading(true);
     const newRoleStatus: RoleStatus = {};
@@ -65,7 +56,7 @@ export default function RoleManager() {
           const hasRole = await readContract({
             contract: supplyChainContract,
             method: "function hasRole(bytes32 role, address account) view returns (bool)",
-            params: [roleHash as `0x${string}`, account.address as `0x${string}`],
+            params: [roleHash as `0x${string}`, address as `0x${string}`],
           });
           
           newRoleStatus[roleName] = hasRole;
@@ -89,12 +80,21 @@ export default function RoleManager() {
     }
   };
 
-  // 为当前账户分配所有角色（演示用）
+  // 为目标地址分配所有角色
   const grantAllRoles = async () => {
     if (!account?.address) {
       toast({
         title: "未连接钱包",
         description: "请先连接钱包",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!targetAddress || !isValidAddress(targetAddress)) {
+      toast({
+        title: "地址无效",
+        description: "请输入有效的以太坊地址",
         variant: "destructive",
       });
       return;
@@ -110,7 +110,7 @@ export default function RoleManager() {
       if (rolesToGrant.length === 0) {
         toast({
           title: "无需分配",
-          description: "所有角色已经分配完成",
+          description: "该地址的所有角色已经分配完成",
         });
         setIsGrantingRoles(false);
         return;
@@ -118,7 +118,7 @@ export default function RoleManager() {
 
       for (const [roleName, roleHash] of rolesToGrant) {
         try {
-          console.log(`Granting ${roleName} to ${account.address} with hash: ${roleHash}`);
+          console.log(`Granting ${roleName} to ${targetAddress} with hash: ${roleHash}`);
           
           // 验证哈希值格式
           if (!roleHash.match(/^0x[a-fA-F0-9]{64}$/)) {
@@ -129,14 +129,14 @@ export default function RoleManager() {
           const tx = await prepareContractCall({
             contract: supplyChainContract,
             method: "function grantRole(bytes32 role, address account)",
-            params: [roleHash as `0x${string}`, account.address as `0x${string}`],
+            params: [roleHash as `0x${string}`, targetAddress as `0x${string}`],
           });
 
           await mutateTransaction(tx);
           
           toast({
             title: `${roleName} 分配成功`,
-            description: `已为你的账户分配 ${roleName.replace('_ROLE', '')} 角色`,
+            description: `已为地址 ${targetAddress.substring(0, 6)}...${targetAddress.substring(38)} 分配 ${roleName.replace('_ROLE', '')} 角色`,
           });
           
           // 等待一下再继续下一个角色
@@ -153,7 +153,7 @@ export default function RoleManager() {
       }
 
       // 重新检查角色状态
-      await checkAllRoles();
+      await checkAllRoles(targetAddress);
       
     } catch (error) {
       console.error("Error granting roles:", error);
@@ -165,6 +165,15 @@ export default function RoleManager() {
   // 分配单个角色
   const grantSingleRole = async (roleName: string, roleHash: string) => {
     if (!account?.address) return;
+
+    if (!targetAddress || !isValidAddress(targetAddress)) {
+      toast({
+        title: "地址无效",
+        description: "请输入有效的以太坊地址",
+        variant: "destructive",
+      });
+      return;
+    }
 
     try {
       console.log(`Granting single role ${roleName} with hash: ${roleHash}`);
@@ -182,18 +191,18 @@ export default function RoleManager() {
       const tx = await prepareContractCall({
         contract: supplyChainContract,
         method: "function grantRole(bytes32 role, address account)",
-        params: [roleHash as `0x${string}`, account.address as `0x${string}`],
+        params: [roleHash as `0x${string}`, targetAddress as `0x${string}`],
       });
 
       await mutateTransaction(tx);
       
       toast({
         title: "角色分配成功",
-        description: `已分配 ${roleName.replace('_ROLE', '')} 角色`,
+        description: `已为地址分配 ${roleName.replace('_ROLE', '')} 角色`,
       });
 
       // 重新检查角色状态
-      await checkAllRoles();
+      await checkAllRoles(targetAddress);
       
     } catch (error) {
       console.error(`Error granting ${roleName}:`, error);
@@ -207,11 +216,14 @@ export default function RoleManager() {
     }
   };
 
+  // 当目标地址变化时，自动检查角色
   useEffect(() => {
-    if (account?.address) {
-      checkAllRoles();
+    if (targetAddress && isValidAddress(targetAddress)) {
+      checkAllRoles(targetAddress);
+    } else {
+      setRoleStatus({});
     }
-  }, [account?.address]);
+  }, [targetAddress]);
 
   if (!account) {
     return (
@@ -229,73 +241,104 @@ export default function RoleManager() {
     <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
       <h2 className="text-lg font-bold mb-4 flex items-center">
         <Shield className="mr-2" />
-        角色管理 (演示模式)
+        角色管理
       </h2>
 
       <div className="mb-4 p-3 bg-blue-50 rounded-lg">
         <p className="text-sm text-blue-700">
-          <strong>演示说明:</strong> 在演示中，你将使用一个钱包账户模拟所有角色。
-          点击下方按钮为你的账户分配所有必要的角色权限。
+          <strong>说明:</strong> 输入目标钱包地址，为该地址分配供应链管理所需的所有角色权限。
         </p>
       </div>
 
+      {/* 目标地址输入 */}
       <div className="mb-6">
-        <h3 className="font-medium mb-3">当前账户: {account.address}</h3>
-        
-        {isLoading ? (
-          <div className="flex items-center justify-center py-4">
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            检查角色权限中...
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {Object.entries(DEMO_ROLES).map(([roleName, roleHash]) => (
-              <div key={roleName} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                <div className="flex items-center">
-                  {roleStatus[roleName] ? (
-                    <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
-                  ) : (
-                    <XCircle className="w-5 h-5 text-red-500 mr-2" />
-                  )}
-                  <div>
-                    <span className="font-medium">
-                      {roleName.replace('_ROLE', '')}
-                    </span>
-                    <div className="text-xs text-gray-500 font-mono">
-                      {roleHash.substring(0, 10)}...{roleHash.substring(roleHash.length - 6)}
-                    </div>
-                  </div>
-                </div>
-                
-                <div className="flex items-center gap-2">
-                  <span className={`px-2 py-1 rounded text-sm ${
-                    roleStatus[roleName] 
-                      ? 'bg-green-100 text-green-800' 
-                      : 'bg-red-100 text-red-800'
-                  }`}>
-                    {roleStatus[roleName] ? '已授权' : '未授权'}
-                  </span>
-                  
-                  {!roleStatus[roleName] && (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => grantSingleRole(roleName, roleHash)}
-                    >
-                      授权
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+        <label className="block text-sm font-medium mb-2">
+          目标钱包地址 *
+        </label>
+        <div className="flex gap-3">
+          <Input
+            type="text"
+            value={targetAddress}
+            onChange={(e) => setTargetAddress(e.target.value)}
+            placeholder="0x..."
+            className="flex-1 font-mono"
+          />
+          <Button
+            variant="outline"
+            onClick={() => account?.address && setTargetAddress(account.address)}
+            disabled={!account}
+          >
+            使用当前钱包
+          </Button>
+        </div>
+        {targetAddress && !isValidAddress(targetAddress) && (
+          <p className="text-red-500 text-sm mt-2">⚠️ 无效的钱包地址格式</p>
         )}
       </div>
+
+      {/* 角色状态显示 */}
+      {targetAddress && isValidAddress(targetAddress) && (
+        <div className="mb-6">
+          <h3 className="font-medium mb-3">
+            目标地址: {targetAddress.substring(0, 6)}...{targetAddress.substring(38)}
+          </h3>
+          
+          {isLoading ? (
+            <div className="flex items-center justify-center py-4">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              检查角色权限中...
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {Object.entries(DEMO_ROLES).map(([roleName, roleHash]) => (
+                <div key={roleName} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div className="flex items-center">
+                    {roleStatus[roleName] ? (
+                      <CheckCircle className="w-5 h-5 text-green-500 mr-2" />
+                    ) : (
+                      <XCircle className="w-5 h-5 text-gray-300 mr-2" />
+                    )}
+                    <div>
+                      <span className="font-medium">
+                        {roleName.replace('_ROLE', '')}
+                      </span>
+                      <div className="text-xs text-gray-500 font-mono">
+                        {roleHash.substring(0, 10)}...{roleHash.substring(roleHash.length - 6)}
+                      </div>
+                    </div>
+                  </div>
+                  
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-1 rounded text-sm ${
+                      roleStatus[roleName] 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {roleStatus[roleName] ? '已授权' : '未授权'}
+                    </span>
+                    
+                    {!roleStatus[roleName] && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => grantSingleRole(roleName, roleHash)}
+                        disabled={isGrantingRoles}
+                      >
+                        授权
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className="flex gap-3">
         <Button
           onClick={grantAllRoles}
-          disabled={isGrantingRoles || isLoading}
+          disabled={isGrantingRoles || isLoading || !targetAddress || !isValidAddress(targetAddress) || !account}
           className="flex-1"
         >
           {isGrantingRoles ? (
@@ -309,9 +352,9 @@ export default function RoleManager() {
         </Button>
         
         <Button
-          onClick={checkAllRoles}
+          onClick={() => targetAddress && isValidAddress(targetAddress) && checkAllRoles(targetAddress)}
           variant="outline"
-          disabled={isLoading}
+          disabled={isLoading || !targetAddress || !isValidAddress(targetAddress)}
         >
           {isLoading ? (
             <Loader2 className="h-4 w-4 animate-spin" />
@@ -321,10 +364,10 @@ export default function RoleManager() {
         </Button>
       </div>
 
-      {Object.values(roleStatus).every(Boolean) && (
+      {targetAddress && isValidAddress(targetAddress) && Object.values(roleStatus).every(Boolean) && (
         <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-lg">
           <p className="text-green-700 font-medium">
-            ✅ 所有角色权限已分配完成！你现在可以模拟所有供应链参与者的操作。
+            ✅ 该地址的所有角色权限已分配完成！
           </p>
         </div>
       )}
