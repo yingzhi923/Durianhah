@@ -1,4 +1,4 @@
-# 🍈 Durianhah — Decentralized Durian Supply Chain dApp
+# Durianhah — Decentralized Durian Supply Chain dApp
 
 > **"From Tree to Table, Verified on Chain."**
 
@@ -8,7 +8,7 @@
 
 ---
 
-## 🧭 Project Overview
+## Project Overview
 ### Summary
 This project builds a complete decentralized supply-chain framework consisting of three main modules.
 
