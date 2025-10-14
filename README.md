@@ -1,5 +1,38 @@
-# Web3-Prediction-Market
-For the demo shown in class, please go to https://github.com/Quentin2050267/Prediction-Market/tree/9e3415c19f37bc1cd8d98c0a1236b52469325b23, which is bug-free but didn't contain the AMM and quadratic voting feature.
+# 🍈 Durianhah — Decentralized Durian Supply Chain dApp
+
+> **"From Tree to Table, Verified on Chain."**
+
+> Durianhah is a blockchain-based demo for durian supply-chain traceability and incentive management.
+> It uses ERC-721 Solidity smart contracts deployed on Kaia Testnet to record every stage of the durian journey — from planting to retail — directly on chain.
+> Through an ERC-20 reward mechanism, it incentivizes all participants to upload authentic data, preventing overpricing and information opacity.
+
+---
+
+## 🧭 Project Overview
+### Summary
+This project builds a complete decentralized supply-chain framework consisting of three main modules.
+  modules:
+    - name: "🧾 Durian721"
+      description: "Each durian or batch is minted as an ERC-721 NFT, representing a unique on-chain identity."
+    - name: "💰 RewardToken"
+      description: "An ERC-20 reward token that incentivizes Farmers, Packers, Logistics operators, and Retailers for honest submissions."
+    - name: "⚙️ SupplyChainManager"
+      description: "The main logic contract handling phase submissions, verification, delayed rewards, and time-lock mechanisms."
+
+project_structure: |
+  Durianhah/
+  ├── contracts/
+  │   ├── Durian721.sol             # NFT contract (ERC-721 + AccessControl)
+  │   ├── RewardToken.sol           # ERC-20 reward token
+  │   └── SupplyChainManager.sol    # Main logic contract
+  ├── frontend/
+  │   ├── src/
+  │   │   ├── config/               # Contract addresses and ABIs
+  │   │   ├── lib/                  # ethers v6 helper functions
+  │   │   ├── pages/                # UI pages
+  │   │   └── components/           # Reusable components
+  └── README.md
+
 
 ## Implementation
 
@@ -15,8 +48,8 @@ For the demo shown in class, please go to https://github.com/Quentin2050267/Pred
 
 1. Clone the repository:
     ```bash
-    git clone https://github.com/Quentin2050267/Prediction-Market.git
-    cd Prediction-Market
+    git clone https://github.com/yingzhi923/Durianhah.git
+    cd Durianhah
     ```
 
 2. Install dependencies:
@@ -42,7 +75,7 @@ For the demo shown in class, please go to https://github.com/Quentin2050267/Pred
     PRIVATE_KEY="your_metamask_wallet_private_key"
     ```
 
-5. Deploy the prediction market contract, Swan Token (SWT) contract and Oracle contract:
+5. Deploy the RewardToken contract, Durian721 contract and SupplyChainManager contract:
     ```bash
     npx hardhat run scripts/deploy.js --network kairos
     ```
