@@ -65,7 +65,7 @@ This project builds a complete decentralized supply-chain framework consisting o
     npx hardhat run scripts/deploy.js --network kairos
     ```
     After this cmd, you will see:
-    <img width="714" alt="image" src="https://github.com/user-attachments/assets/431323d3-59d1-419f-a8eb-ffbd1c6ae5cb" />
+    <img width="710" height="266" alt="Image" src="https://github.com/user-attachments/assets/0bcb93d3-25bc-43fd-aa05-a75c93221a3a" />
 
     **Please copy the addresses of these contracts and paste them into `../frontend/src/constants/contracts.ts` and `.env` file.**
     ```bash
@@ -75,7 +75,7 @@ This project builds a complete decentralized supply-chain framework consisting o
     ```
 
     There should be 7 entries in `.env`.
-    <img width="611" alt="image" src="https://github.com/user-attachments/assets/2baf3bac-d365-4329-bfc1-8aab5c93caf1" />
+    <img width="1226" height="312" alt="Image" src="https://github.com/user-attachments/assets/31cb3be2-52fe-4b15-8625-b2d7bf1af256" />
 
 
 7. Configure `.env` file in the frontend directory:
@@ -90,7 +90,7 @@ This project builds a complete decentralized supply-chain framework consisting o
     THIRDWEB_SECRET_KEY="secret_key_in_thirdweb"
     KAIROS_TESTNET_URL="https://public-en-kairos.node.kaia.io"
     ```
-    <img width="445" alt="image" src="https://github.com/user-attachments/assets/1f5a6e3c-d486-4af7-965f-13c061f3c775" />
+    <img width="1287" height="354" alt="Image" src="https://github.com/user-attachments/assets/aedfea3b-17b4-4ced-835e-b80e3b16ffc4" />
 
 
 ### Run the development server
@@ -100,13 +100,7 @@ This project builds a complete decentralized supply-chain framework consisting o
     npm run dev
     ```
 
+### Glimpse
 
-## Glimpse
-<img width="1470" alt="image" src="https://github.com/user-attachments/assets/7578d0a8-898c-485c-8cae-de33313a18c9" />
-
-<img width="1470" alt="image" src="https://github.com/user-attachments/assets/f8b7457b-4642-45cd-903c-f054bafad59a" />
-
-<img width="1470" alt="image" src="https://github.com/user-attachments/assets/8e625389-63b5-44fb-9b82-8fc4992a1f67" />
-
-
+tbd
 
