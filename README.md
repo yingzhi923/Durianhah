@@ -11,27 +11,12 @@
 ## 🧭 Project Overview
 ### Summary
 This project builds a complete decentralized supply-chain framework consisting of three main modules.
-  modules:
-    - name: "🧾 Durian721"
-      description: "Each durian or batch is minted as an ERC-721 NFT, representing a unique on-chain identity."
-    - name: "💰 RewardToken"
-      description: "An ERC-20 reward token that incentivizes Farmers, Packers, Logistics operators, and Retailers for honest submissions."
-    - name: "⚙️ SupplyChainManager"
-      description: "The main logic contract handling phase submissions, verification, delayed rewards, and time-lock mechanisms."
 
-project_structure: |
-  Durianhah/
-  ├── contracts/
-  │   ├── Durian721.sol             # NFT contract (ERC-721 + AccessControl)
-  │   ├── RewardToken.sol           # ERC-20 reward token
-  │   └── SupplyChainManager.sol    # Main logic contract
-  ├── frontend/
-  │   ├── src/
-  │   │   ├── config/               # Contract addresses and ABIs
-  │   │   ├── lib/                  # ethers v6 helper functions
-  │   │   ├── pages/                # UI pages
-  │   │   └── components/           # Reusable components
-  └── README.md
+| Modules | Description |
+|------|------|
+| **Durian721** | Each durian or batch is minted as an ERC-721 NFT, representing a unique on-chain identity. |
+| **RewardToken** | An ERC-20 reward token that incentivizes Farmers, Packers, Logistics operators, and Retailers for honest submissions. |
+| **SupplyChainManager** | The main logic contract handling phase submissions, verification, delayed rewards, and time-lock mechanisms. |
 
 
 ## Implementation
@@ -84,10 +69,9 @@ project_structure: |
 
     **Please copy the addresses of these contracts and paste them into `../frontend/src/constants/contracts.ts` and `.env` file.**
     ```bash
-    SWAN_TOKEN_CONTRACT_ADDRESS= "0x..."
-    PREDICTION_MARKET_CONTRACT_ADDRESS= "0x..."
-    ORACLE_CONTRACT_ADDRESS= "0x..."
-    CANDIDATE_CONTRACT_ADDRESS= "0x..."
+    tokenContractAddress = "0x..."
+    durianNFTContractAddress = "0x..."
+    supplyChainManagerContractAddress = "0x..."
     ```
 
     There should be 7 entries in `.env`.
