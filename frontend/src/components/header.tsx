@@ -11,9 +11,10 @@ import { client } from "@/app/client";
 import { kaiaTestnet } from "@/chain.config";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader2, Gift, TreePine } from "lucide-react";
+import { Loader2, Gift } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { inAppWallet, createWallet } from "thirdweb/wallets";
+import Image from "next/image";
 import {
   rewardTokenContract,
   tokenContractAddress,
@@ -63,19 +64,21 @@ export function Header() {
   }, [showAnimation]);
 
   const handleClaimTokens = async () => {
+    if (!account?.address) return;
+    
     setIsClaimLoading(true);
     try {
       const tx = await prepareContractCall({
         contract: rewardTokenContract,
         method: "function mint(address to, uint256 amount)",
-        params: [account?.address, BigInt("1000000000000000000000")], // 1000 tokens
+        params: [account.address, BigInt("1000000000000000000000")], // 1000 tokens
       });
 
       await sendTransaction(tx);
 
       toast({
-        title: "奖励代币已领取!",
-        description: "您的奖励代币已成功领取。请刷新页面查看余额。",
+        title: "Reward Tokens Claimed!",
+        description: "Your reward tokens have been successfully claimed. Please refresh the page to see your balance.",
         duration: 5000,
       });
 
@@ -86,8 +89,8 @@ export function Header() {
     } catch (error) {
       console.error(error);
       toast({
-        title: "领取失败",
-        description: "领取奖励代币时出现错误，请重试。",
+        title: "Claim Failed",
+        description: "An error occurred while claiming reward tokens. Please try again.",
         variant: "destructive",
       });
     } finally {
@@ -98,9 +101,15 @@ export function Header() {
   return (
     <div className="flex justify-between items-center py-4">
       <div className="flex items-center gap-3">
-        <TreePine className="h-8 w-8 text-green-600" />
+        <Image 
+          src="/durian-logo.png" 
+          alt="Durian" 
+          width={40} 
+          height={40}
+          priority
+        />
         <h1 className="text-2xl font-bold m-0 text-gray-800">
-          榴莲供应链管理系统
+          Durian Supply Chain
         </h1>
       </div>
       <div className="items-center flex gap-3">
@@ -117,7 +126,7 @@ export function Header() {
             {isClaimLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                领取中...
+                Claiming...
               </>
             ) : (
               <>
@@ -127,7 +136,7 @@ export function Header() {
                     showAnimation ? "scale-110" : ""
                   )}
                 />
-                领取奖励代币
+                Claim Reward Tokens
               </>
             )}
 

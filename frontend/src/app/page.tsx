@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Toaster } from "@/components/ui/toaster";
 import Link from "next/link";
+import Image from "next/image";
 import { 
-  TreePine, 
   Shield, 
   Upload, 
   CheckCircle, 
@@ -19,7 +19,7 @@ import {
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-green-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-yellow-50 to-white">
       <Toaster />
       
       {/* Header */}
@@ -33,16 +33,22 @@ export default function Home() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <div className="text-center mb-16">
           <div className="flex justify-center mb-6">
-            <TreePine className="h-20 w-20 text-green-600" />
+            <Image 
+              src="/durian-logo.png" 
+              alt="Durian" 
+              width={120} 
+              height={120}
+              priority
+            />
           </div>
           <h1 className="text-5xl font-bold text-gray-900 mb-4">
-            榴莲供应链管理系统
+            Durian Supply Chain Management System
           </h1>
           <p className="text-xl text-gray-600 max-w-3xl mx-auto">
-            基于区块链的透明、可信、可追溯的榴莲供应链管理平台
+            Blockchain-based transparent, trustworthy, and traceable durian supply chain platform
           </p>
           <p className="text-lg text-gray-500 mt-4">
-            从农场到餐桌，每一步都清晰可见
+            From farm to table, every step is clearly visible
           </p>
         </div>
 
@@ -51,49 +57,49 @@ export default function Home() {
           <Link href="/roles">
             <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-blue-500">
               <Shield className="h-12 w-12 text-blue-600 mb-4" />
-              <h3 className="text-xl font-bold mb-2">角色管理</h3>
-              <p className="text-gray-600">管理系统参与者的权限</p>
+              <h3 className="text-xl font-bold mb-2">Role Management</h3>
+              <p className="text-gray-600">Manage permissions for system participants</p>
             </Card>
           </Link>
 
           <Link href="/dashboard">
             <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-purple-500">
               <BarChart3 className="h-12 w-12 text-purple-600 mb-4" />
-              <h3 className="text-xl font-bold mb-2">管理控制台</h3>
-              <p className="text-gray-600">查看统计数据和待核验项目</p>
+              <h3 className="text-xl font-bold mb-2">Dashboard</h3>
+              <p className="text-gray-600">View statistics and pending verifications</p>
             </Card>
           </Link>
 
           <Link href="/submit/farming">
             <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-green-500">
               <Upload className="h-12 w-12 text-green-600 mb-4" />
-              <h3 className="text-xl font-bold mb-2">数据提交</h3>
-              <p className="text-gray-600">提交各阶段供应链数据</p>
+              <h3 className="text-xl font-bold mb-2">Data Submission</h3>
+              <p className="text-gray-600">Submit supply chain data for each phase</p>
             </Card>
           </Link>
 
           <Link href="/verify">
             <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-orange-500">
               <CheckCircle className="h-12 w-12 text-orange-600 mb-4" />
-              <h3 className="text-xl font-bold mb-2">数据核验</h3>
-              <p className="text-gray-600">核验待审批的供应链数据</p>
+              <h3 className="text-xl font-bold mb-2">Data Verification</h3>
+              <p className="text-gray-600">Verify pending supply chain data</p>
             </Card>
           </Link>
         </div>
 
         {/* Features Section */}
         <div className="mb-16">
-          <h2 className="text-3xl font-bold text-center mb-12">供应链五阶段流程</h2>
+          <h2 className="text-3xl font-bold text-center mb-12">Five-Phase Supply Chain Process</h2>
           <div className="grid md:grid-cols-5 gap-4">
             <Card className="p-6 text-center">
               <div className="flex justify-center mb-4">
                 <div className="bg-green-100 p-4 rounded-full">
-                  <TreePine className="h-8 w-8 text-green-600" />
+                  <span className="text-3xl">🌱</span>
                 </div>
               </div>
               <h3 className="font-bold mb-2">Phase 1</h3>
-              <p className="text-sm text-gray-600">种植 (Farming)</p>
-              <p className="text-xs text-gray-500 mt-2">IoT 监控、施肥记录</p>
+              <p className="text-sm text-gray-600">Farming</p>
+              <p className="text-xs text-gray-500 mt-2">IoT monitoring, fertilization records</p>
             </Card>
 
             <Card className="p-6 text-center">
@@ -103,8 +109,8 @@ export default function Home() {
                 </div>
               </div>
               <h3 className="font-bold mb-2">Phase 2</h3>
-              <p className="text-sm text-gray-600">采摘 (Harvest)</p>
-              <p className="text-xs text-gray-500 mt-2">重量、品质检测</p>
+              <p className="text-sm text-gray-600">Harvest</p>
+              <p className="text-xs text-gray-500 mt-2">Weight, quality inspection</p>
             </Card>
 
             <Card className="p-6 text-center">
@@ -114,8 +120,8 @@ export default function Home() {
                 </div>
               </div>
               <h3 className="font-bold mb-2">Phase 3</h3>
-              <p className="text-sm text-gray-600">包装 (Packing)</p>
-              <p className="text-xs text-gray-500 mt-2">QA检测、批次管理</p>
+              <p className="text-sm text-gray-600">Packing</p>
+              <p className="text-xs text-gray-500 mt-2">QA testing, batch management</p>
             </Card>
 
             <Card className="p-6 text-center">
@@ -125,8 +131,8 @@ export default function Home() {
                 </div>
               </div>
               <h3 className="font-bold mb-2">Phase 4</h3>
-              <p className="text-sm text-gray-600">物流 (Logistics)</p>
-              <p className="text-xs text-gray-500 mt-2">温度监控、路线追踪</p>
+              <p className="text-sm text-gray-600">Logistics</p>
+              <p className="text-xs text-gray-500 mt-2">Temperature monitoring, route tracking</p>
             </Card>
 
             <Card className="p-6 text-center">
@@ -136,23 +142,23 @@ export default function Home() {
                 </div>
               </div>
               <h3 className="font-bold mb-2">Phase 5</h3>
-              <p className="text-sm text-gray-600">零售 (Retail)</p>
-              <p className="text-xs text-gray-500 mt-2">门店信息、售价</p>
+              <p className="text-sm text-gray-600">Retail</p>
+              <p className="text-xs text-gray-500 mt-2">Store information, pricing</p>
             </Card>
           </div>
         </div>
 
         {/* Benefits Section */}
         <div className="bg-white rounded-2xl p-8 shadow-lg">
-          <h2 className="text-3xl font-bold text-center mb-8">平台优势</h2>
+          <h2 className="text-3xl font-bold text-center mb-8">Platform Advantages</h2>
           <div className="grid md:grid-cols-3 gap-8">
             <div className="text-center">
               <div className="bg-blue-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <CheckCircle className="h-8 w-8 text-blue-600" />
               </div>
-              <h3 className="font-bold text-xl mb-2">透明可信</h3>
+              <h3 className="font-bold text-xl mb-2">Transparent & Trustworthy</h3>
               <p className="text-gray-600">
-                所有数据上链存储，不可篡改，确保供应链信息真实可靠
+                All data stored on-chain, immutable, ensuring authentic and reliable supply chain information
               </p>
             </div>
 
@@ -160,9 +166,9 @@ export default function Home() {
               <div className="bg-green-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Search className="h-8 w-8 text-green-600" />
               </div>
-              <h3 className="font-bold text-xl mb-2">全程追溯</h3>
+              <h3 className="font-bold text-xl mb-2">Full Traceability</h3>
               <p className="text-gray-600">
-                扫码即可查看榴莲从农场到餐桌的完整供应链信息
+                Scan QR code to view complete supply chain information from farm to table
               </p>
             </div>
 
@@ -170,9 +176,9 @@ export default function Home() {
               <div className="bg-purple-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4">
                 <BarChart3 className="h-8 w-8 text-purple-600" />
               </div>
-              <h3 className="font-bold text-xl mb-2">智能激励</h3>
+              <h3 className="font-bold text-xl mb-2">Smart Incentives</h3>
               <p className="text-gray-600">
-                基于智能合约的自动奖励机制，激励各环节参与者
+                Automated reward mechanism based on smart contracts to incentivize all participants
               </p>
             </div>
           </div>
@@ -180,19 +186,19 @@ export default function Home() {
 
         {/* CTA Section */}
         <div className="text-center mt-16">
-          <h2 className="text-2xl font-bold mb-4">准备开始了吗？</h2>
+          <h2 className="text-2xl font-bold mb-4">Ready to Get Started?</h2>
           <p className="text-gray-600 mb-8">
-            首先需要连接钱包并分配角色权限
+            First, connect your wallet and assign role permissions
           </p>
           <div className="flex justify-center gap-4">
             <Link href="/roles">
               <Button size="lg" className="text-lg px-8">
-                开始使用
+                Get Started
               </Button>
             </Link>
             <Link href="/track/1">
               <Button size="lg" variant="outline" className="text-lg px-8">
-                查看演示
+                View Demo
               </Button>
             </Link>
           </div>
@@ -203,7 +209,7 @@ export default function Home() {
       <footer className="bg-gray-900 text-white py-8 mt-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <p className="text-gray-400">
-            © 2025 榴莲供应链管理系统 | 基于区块链技术构建
+            © 2025 Durian Supply Chain Management System | Built on Blockchain Technology
           </p>
         </div>
       </footer>

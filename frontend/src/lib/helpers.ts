@@ -33,24 +33,24 @@ export const formatDate = (timestamp: number): string => {
 };
 
 /**
- * 获取倒计时文本
+ * Get countdown text
  */
 export const getCountdown = (unlockTime: number): string => {
   const now = Math.floor(Date.now() / 1000);
   const remaining = unlockTime - now;
   
-  if (remaining <= 0) return "已解锁";
+  if (remaining <= 0) return "Unlocked";
   
   const days = Math.floor(remaining / 86400);
   const hours = Math.floor((remaining % 86400) / 3600);
   const minutes = Math.floor((remaining % 3600) / 60);
   
   if (days > 0) {
-    return `${days}天${hours}小时`;
+    return `${days}d ${hours}h`;
   } else if (hours > 0) {
-    return `${hours}小时${minutes}分钟`;
+    return `${hours}h ${minutes}m`;
   } else {
-    return `${minutes}分钟`;
+    return `${minutes}m`;
   }
 };
 
@@ -77,17 +77,17 @@ export const getStatusIcon = (
 };
 
 /**
- * 获取状态文本
+ * Get status text
  */
 export const getStatusText = (
   submitted: boolean,
   verified: boolean,
   claimed: boolean
 ): string => {
-  if (claimed) return "已领取";
-  if (verified) return "已核验";
-  if (submitted) return "待核验";
-  return "未提交";
+  if (claimed) return "Claimed";
+  if (verified) return "Verified";
+  if (submitted) return "Pending";
+  return "Not Submitted";
 };
 
 /**
@@ -151,11 +151,11 @@ export const isValidDataHash = (hash: string): boolean => {
 };
 
 /**
- * 从错误对象中提取可读消息
+ * Extract readable message from error object
  */
 export const getErrorMessage = (error: any): string => {
   if (typeof error === "string") return error;
   if (error?.message) return error.message;
   if (error?.reason) return error.reason;
-  return "发生未知错误";
+  return "An unknown error occurred";
 };

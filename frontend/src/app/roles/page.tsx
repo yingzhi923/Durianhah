@@ -28,6 +28,7 @@ export default function RoleManagementPage() {
   const [currentUserIsAdmin, setCurrentUserIsAdmin] = useState(false);
   const [loading, setLoading] = useState(false);
   const [checkingRoles, setCheckingRoles] = useState(false);
+  const [grantingRole, setGrantingRole] = useState<string | null>(null);
 
   useEffect(() => {
     if (account) {
@@ -102,10 +103,10 @@ export default function RoleManagementPage() {
       setCurrentRoles(roles);
       setNftRoles(nftRoleStatus);
     } catch (error) {
-      console.error("检查角色失败:", error);
+      console.error("Role check failed:", error);
       toast({
-        title: "检查失败",
-        description: "无法检查目标地址的角色",
+        title: "Check Failed",
+        description: "Unable to check roles for target address",
         variant: "destructive",
       });
     } finally {
@@ -116,8 +117,8 @@ export default function RoleManagementPage() {
   const grantAllRoles = async () => {
     if (!account?.address) {
       toast({
-        title: "权限不足",
-        description: "需要连接钱包",
+        title: "Insufficient Permissions",
+        description: "Need to connect wallet",
         variant: "destructive",
       });
       return;
@@ -125,8 +126,8 @@ export default function RoleManagementPage() {
 
     if (!targetAddress || !isValidAddress(targetAddress)) {
       toast({
-        title: "地址无效",
-        description: "请输入有效的钱包地址",
+        title: "Invalid Address",
+        description: "Please enter a valid wallet address",
         variant: "destructive",
       });
       return;
@@ -137,7 +138,7 @@ export default function RoleManagementPage() {
     let errorCount = 0;
 
     try {
-      // 授予供应链合约的所有角色
+      // Grant all roles for supply chain contract
       for (const [roleName, roleHash] of Object.entries(ROLES)) {
         try {
           const hasRole = await readContract({
@@ -155,22 +156,22 @@ export default function RoleManagementPage() {
 
             await sendTransaction(tx);
             successCount++;
-            console.log(`✅ 供应链: ${roleName} 授予成功`);
+            console.log(`✅ Supply Chain: ${roleName} granted successfully`);
             
             toast({
-              title: `${roleName} 授予成功`,
-              description: `已授予供应链合约的 ${roleName} 角色`,
+              title: `${roleName} Granted Successfully`,
+              description: `Granted ${roleName} role for supply chain contract`,
             });
           } else {
-            console.log(`⏭️ 供应链: ${roleName} 已存在，跳过`);
+            console.log(`⏭️ Supply Chain: ${roleName} already exists, skipped`);
           }
         } catch (error) {
           errorCount++;
-          console.error(`❌ 供应链: ${roleName} 授予失败:`, error);
+          console.error(`❌ Supply Chain: ${roleName} grant failed:`, error);
         }
       }
 
-      // 授予 NFT 合约的 FARMER_ROLE
+      // Grant FARMER_ROLE for NFT contract
       try {
         const hasNFTFarmer = await readContract({
           contract: nftContract,
@@ -187,34 +188,98 @@ export default function RoleManagementPage() {
 
           await sendTransaction(tx);
           successCount++;
-          console.log(`✅ NFT: FARMER_ROLE 授予成功`);
+          console.log(`✅ NFT: FARMER_ROLE granted successfully`);
           
           toast({
-            title: "NFT FARMER_ROLE 授予成功",
-            description: "已授予 NFT 合约的铸造权限",
+            title: "NFT FARMER_ROLE Granted Successfully",
+            description: "Granted minting permission for NFT contract",
           });
         }
       } catch (error) {
         errorCount++;
-        console.error(`❌ NFT: FARMER_ROLE 授予失败:`, error);
+        console.error(`❌ NFT: FARMER_ROLE grant failed:`, error);
       }
 
       toast({
-        title: "角色授予完成",
-        description: `成功: ${successCount} 个，失败: ${errorCount} 个`,
+        title: "Role Granting Completed",
+        description: `Success: ${successCount}, Failed: ${errorCount}`,
         variant: errorCount > 0 ? "destructive" : "default",
       });
 
       await checkTargetRoles();
     } catch (error: any) {
-      console.error("批量授予失败:", error);
+      console.error("Batch granting failed:", error);
       toast({
-        title: "授予失败",
+        title: "Granting Failed",
         description: getErrorMessage(error),
         variant: "destructive",
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const grantSingleRole = async (roleName: string, roleHash: string, isNFTContract: boolean = false) => {
+    if (!account?.address) {
+      toast({
+        title: "Insufficient Permissions",
+        description: "Need to connect wallet",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!targetAddress || !isValidAddress(targetAddress)) {
+      toast({
+        title: "Invalid Address",
+        description: "Please enter a valid wallet address",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setGrantingRole(roleName);
+
+    try {
+      const contract = isNFTContract ? nftContract : supplyChainContract;
+      
+      const hasRole = await readContract({
+        contract,
+        method: "function hasRole(bytes32 role, address account) view returns (bool)",
+        params: [roleHash as `0x${string}`, targetAddress],
+      });
+
+      if (hasRole) {
+        toast({
+          title: "Role Already Exists",
+          description: `Target address already has ${roleName}`,
+        });
+        return;
+      }
+
+      const tx = prepareContractCall({
+        contract,
+        method: "function grantRole(bytes32 role, address account)",
+        params: [roleHash as `0x${string}`, targetAddress],
+      });
+
+      await sendTransaction(tx);
+      
+      toast({
+        title: `${roleName} Granted Successfully`,
+        description: `Successfully granted ${roleName} to target address`,
+      });
+
+      await checkTargetRoles();
+    } catch (error: any) {
+      console.error(`❌ ${roleName} grant failed:`, error);
+      toast({
+        title: "Granting Failed",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
+    } finally {
+      setGrantingRole(null);
     }
   };
 
@@ -235,8 +300,8 @@ export default function RoleManagementPage() {
         <div className="max-w-4xl mx-auto p-6">
           <Card className="p-8 text-center">
             <AlertCircle className="mx-auto h-12 w-12 text-yellow-500 mb-4" />
-            <h2 className="text-2xl font-bold mb-2">请先连接钱包</h2>
-            <p className="text-gray-600">您需要连接钱包才能访问角色管理功能</p>
+            <h2 className="text-2xl font-bold mb-2">Please Connect Wallet</h2>
+            <p className="text-gray-600">You need to connect your wallet to access role management features</p>
           </Card>
         </div>
       </div>
@@ -258,10 +323,10 @@ export default function RoleManagementPage() {
             <div className="flex items-start gap-3">
               <AlertCircle className="h-5 w-5 text-yellow-600 mt-0.5" />
               <div>
-                <h3 className="font-semibold text-yellow-900">权限提示</h3>
+                <h3 className="font-semibold text-yellow-900">Permission Notice</h3>
                 <p className="text-sm text-yellow-800 mt-1">
-                  您当前没有管理员权限。如果您是合约部署者或已授权的管理员，可以继续操作。
-                  如果您没有权限，交易将在链上被拒绝。
+                  You currently do not have admin permissions. If you are the contract deployer or an authorized admin, you can proceed.
+                  If you lack permissions, the transaction will be rejected on-chain.
                 </p>
               </div>
             </div>
@@ -273,9 +338,9 @@ export default function RoleManagementPage() {
             <div className="flex items-start gap-3">
               <CheckCircle className="h-5 w-5 text-green-600 mt-0.5" />
               <div>
-                <h3 className="font-semibold text-green-900">管理员权限已确认</h3>
+                <h3 className="font-semibold text-green-900">Admin Permission Confirmed</h3>
                 <p className="text-sm text-green-800 mt-1">
-                  您拥有管理员权限，可以为任何地址分配角色。
+                  You have admin permissions and can assign roles to any address.
                 </p>
               </div>
             </div>
@@ -285,14 +350,14 @@ export default function RoleManagementPage() {
         <div className="mb-6">
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Shield className="h-8 w-8 text-blue-600" />
-            角色管理中心
+            Role Management Center
           </h1>
-          <p className="text-gray-600 mt-2">管理供应链参与者的权限</p>
+          <p className="text-gray-600 mt-2">Manage permissions for supply chain participants</p>
         </div>
 
         {/* 目标地址输入 */}
         <Card className="p-6 mb-6">
-          <h3 className="font-semibold mb-4">目标钱包地址</h3>
+          <h3 className="font-semibold mb-4">Target Wallet Address</h3>
           <div className="flex gap-3">
             <Input
               type="text"
@@ -302,17 +367,17 @@ export default function RoleManagementPage() {
               className="flex-1 font-mono"
             />
             <Button onClick={fillCurrentAddress} variant="outline">
-              📋 使用当前钱包
+              📋 Use Current Wallet
             </Button>
           </div>
           {targetAddress && !isValidAddress(targetAddress) && (
-            <p className="text-red-500 text-sm mt-2">⚠️ 无效的钱包地址</p>
+            <p className="text-red-500 text-sm mt-2">⚠️ Invalid wallet address</p>
           )}
         </Card>
 
         {/* 快速操作 */}
         <Card className="p-6 mb-6">
-          <h3 className="font-semibold mb-4">快速操作</h3>
+          <h3 className="font-semibold mb-4">Quick Actions</h3>
           <Button
             onClick={grantAllRoles}
             disabled={loading || !targetAddress || !isValidAddress(targetAddress)}
@@ -322,10 +387,10 @@ export default function RoleManagementPage() {
             {loading ? (
               <>
                 <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                处理中...
+                Processing...
               </>
             ) : (
-              "✨ 一键授予所有角色"
+              "✨ Grant All Roles"
             )}
           </Button>
         </Card>
@@ -335,7 +400,7 @@ export default function RoleManagementPage() {
           <>
             <Card className="p-6 mb-6">
               <h3 className="font-semibold mb-4 flex items-center justify-between">
-                <span>📜 供应链管理合约角色</span>
+                <span>📜 Supply Chain Management Contract Roles</span>
                 {checkingRoles && <Loader2 className="h-4 w-4 animate-spin" />}
               </h3>
               <div className="space-y-3">
@@ -359,22 +424,40 @@ export default function RoleManagementPage() {
                         </div>
                       </div>
                     </div>
-                    <span
-                      className={`px-3 py-1 rounded-full text-sm font-medium ${
-                        currentRoles[roleName]
-                          ? "bg-green-100 text-green-800"
-                          : "bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {currentRoles[roleName] ? "✅ 已授权" : "❌ 未授权"}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={`px-3 py-1 rounded-full text-sm font-medium ${
+                          currentRoles[roleName]
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-600"
+                        }`}
+                      >
+                        {currentRoles[roleName] ? "✅ Granted" : "❌ Not Granted"}
+                      </span>
+                      {!currentRoles[roleName] && (
+                        <Button
+                          size="sm"
+                          onClick={() => grantSingleRole(roleName, roleHash, false)}
+                          disabled={grantingRole === roleName || !targetAddress || !isValidAddress(targetAddress)}
+                        >
+                          {grantingRole === roleName ? (
+                            <>
+                              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                              Granting...
+                            </>
+                          ) : (
+                            "Grant Role"
+                          )}
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
             </Card>
 
             <Card className="p-6 mb-6">
-              <h3 className="font-semibold mb-4">🌴 NFT 合约 (Durian721) 角色</h3>
+              <h3 className="font-semibold mb-4">🌴 NFT Contract (Durian721) Roles</h3>
               <div className="space-y-3">
                 {nftRoles && (
                   <>
@@ -386,19 +469,37 @@ export default function RoleManagementPage() {
                           <XCircle className="h-5 w-5 text-gray-300" />
                         )}
                         <div>
-                          <div className="font-medium">FARMER (铸造权限)</div>
-                          <div className="text-xs text-gray-500">可以铸造榴莲 NFT</div>
+                          <div className="font-medium">FARMER</div>
+                          <div className="text-xs text-gray-500">Can mint durian NFTs</div>
                         </div>
                       </div>
-                      <span
-                        className={`px-3 py-1 rounded-full text-sm font-medium ${
-                          nftRoles.FARMER_ROLE
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-600"
-                        }`}
-                      >
-                        {nftRoles.FARMER_ROLE ? "✅ 已授权" : "❌ 未授权"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`px-3 py-1 rounded-full text-sm font-medium ${
+                            nftRoles.FARMER_ROLE
+                              ? "bg-green-100 text-green-800"
+                              : "bg-gray-100 text-gray-600"
+                          }`}
+                        >
+                          {nftRoles.FARMER_ROLE ? "✅ Granted" : "❌ Not Granted"}
+                        </span>
+                        {!nftRoles.FARMER_ROLE && (
+                          <Button
+                            size="sm"
+                            onClick={() => grantSingleRole("FARMER_ROLE (NFT)", ROLES.FARMER_ROLE, true)}
+                            disabled={grantingRole === "FARMER_ROLE (NFT)" || !targetAddress || !isValidAddress(targetAddress)}
+                          >
+                            {grantingRole === "FARMER_ROLE (NFT)" ? (
+                              <>
+                                <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                                Granting...
+                              </>
+                            ) : (
+                              "Grant Role"
+                            )}
+                          </Button>
+                        )}
+                      </div>
                     </div>
                   </>
                 )}
@@ -410,43 +511,43 @@ export default function RoleManagementPage() {
         {/* 角色说明 */}
         <Card className="p-6 bg-blue-50 border-blue-200">
           <h3 className="font-semibold mb-3 flex items-center gap-2">
-            📖 角色权限说明
+            📖 Role Permissions Guide
           </h3>
           <ul className="space-y-2 text-sm">
             <li className="flex items-start gap-2">
               <span className="text-blue-600 font-bold">→</span>
               <span>
-                <strong className="text-blue-700">ADMIN_ROLE</strong>: 最高权限，可管理其他角色、设置奖励、暂停合约
+                <strong className="text-blue-700">ADMIN_ROLE</strong>: Highest authority, can manage other roles, set rewards, pause contracts
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-blue-600 font-bold">→</span>
               <span>
-                <strong className="text-blue-700">FARMER_ROLE (供应链)</strong>: 可提交 Phase 1, 2 数据
+                <strong className="text-blue-700">FARMER_ROLE (Supply Chain)</strong>: Can submit Phase 1, 2 data
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-blue-600 font-bold">→</span>
               <span>
-                <strong className="text-blue-700">FARMER_ROLE (NFT)</strong>: 可铸造榴莲 NFT
+                <strong className="text-blue-700">FARMER_ROLE (NFT)</strong>: Can mint durian NFTs
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-blue-600 font-bold">→</span>
               <span>
-                <strong className="text-blue-700">PACKER_ROLE</strong>: 可提交 Phase 3，可核验 Phase 2
+                <strong className="text-blue-700">PACKER_ROLE</strong>: Can submit Phase 3, can verify Phase 2
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-blue-600 font-bold">→</span>
               <span>
-                <strong className="text-blue-700">LOGISTICS_ROLE</strong>: 可提交 Phase 4，可核验 Phase 3
+                <strong className="text-blue-700">LOGISTICS_ROLE</strong>: Can submit Phase 4, can verify Phase 3
               </span>
             </li>
             <li className="flex items-start gap-2">
               <span className="text-blue-600 font-bold">→</span>
               <span>
-                <strong className="text-blue-700">RETAIL_ROLE</strong>: 可提交 Phase 5，可核验 Phase 4
+                <strong className="text-blue-700">RETAIL_ROLE</strong>: Can submit Phase 5, can verify Phase 4
               </span>
             </li>
           </ul>

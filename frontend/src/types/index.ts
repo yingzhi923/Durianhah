@@ -41,19 +41,19 @@ export interface PendingVerification {
 }
 
 export const PHASE_NAMES = {
-  1: "Farming (种植)",
-  2: "Harvest (采摘)",
-  3: "Packing (包装)",
-  4: "Logistics (物流)",
-  5: "Retail (零售)"
+  1: "Farming",
+  2: "Harvest",
+  3: "Packing",
+  4: "Logistics",
+  5: "Retail"
 } as const;
 
 export const ROLE_NAMES = {
-  FARMER_ROLE: "农户",
-  PACKER_ROLE: "包装工",
-  LOGISTICS_ROLE: "物流商",
-  RETAIL_ROLE: "零售商",
-  ADMIN_ROLE: "管理员"
+  FARMER_ROLE: "Farmer",
+  PACKER_ROLE: "Packer",
+  LOGISTICS_ROLE: "Logistics",
+  RETAIL_ROLE: "Retailer",
+  ADMIN_ROLE: "Admin"
 } as const;
 
 // 角色哈希必须与合约中的 keccak256("ROLE_NAME") 结果匹配

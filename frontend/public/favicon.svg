@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 200">
+  <!-- Durian outer shell with spikes -->
+  <ellipse cx="100" cy="110" rx="75" ry="70" fill="#B8C776" stroke="#6B4423" stroke-width="3"/>
+  
+  <!-- Spikes around the shell -->
+  <path d="M 40 80 L 35 70 L 45 75 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 50 55 L 48 45 L 55 50 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 70 40 L 70 28 L 75 38 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 95 30 L 97 20 L 100 30 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 120 35 L 125 25 L 125 35 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 145 50 L 152 42 L 150 52 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 160 75 L 168 68 L 165 78 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 170 105 L 178 102 L 175 110 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 168 135 L 175 135 L 172 142 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 155 160 L 160 168 L 158 162 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 130 175 L 132 183 L 128 177 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 100 180 L 100 190 L 95 182 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 70 175 L 68 183 L 65 177 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 45 160 L 40 168 L 42 162 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 32 135 L 25 140 L 28 133 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  <path d="M 28 105 L 20 108 L 23 100 Z" fill="#8B9A5B" stroke="#6B4423" stroke-width="1.5"/>
+  
+  <!-- Inner flesh opening -->
+  <ellipse cx="100" cy="100" rx="55" ry="50" fill="#FFF4D4" stroke="#6B4423" stroke-width="2.5"/>
+  
+  <!-- Durian flesh segments (5 chambers) -->
+  <path d="M 100 50 Q 120 75, 100 100 Q 80 75, 100 50 Z" fill="#FFE066" stroke="#D4A017" stroke-width="2"/>
+  <path d="M 100 100 Q 130 110, 120 135 Q 100 125, 100 100 Z" fill="#FFD700" stroke="#D4A017" stroke-width="2"/>
+  <path d="M 100 100 Q 100 125, 80 135 Q 70 110, 100 100 Z" fill="#FFE066" stroke="#D4A017" stroke-width="2"/>
+  <path d="M 100 50 Q 135 65, 130 90 Q 115 85, 100 70 Z" fill="#FFD700" stroke="#D4A017" stroke-width="2"/>
+  <path d="M 100 50 Q 65 65, 70 90 Q 85 85, 100 70 Z" fill="#FFE066" stroke="#D4A017" stroke-width="2"/>
+  
+  <!-- Texture lines on flesh -->
+  <path d="M 95 65 Q 100 75, 105 65" fill="none" stroke="#E6B800" stroke-width="1" opacity="0.5"/>
+  <path d="M 90 75 Q 100 85, 110 75" fill="none" stroke="#E6B800" stroke-width="1" opacity="0.5"/>
+  <path d="M 115 110 Q 118 120, 115 128" fill="none" stroke="#E6B800" stroke-width="1" opacity="0.5"/>
+  <path d="M 85 110 Q 82 120, 85 128" fill="none" stroke="#E6B800" stroke-width="1" opacity="0.5"/>
+  
+  <!-- Stem -->
+  <rect x="95" y="15" width="10" height="20" rx="4" fill="#8B6B47" stroke="#6B4423" stroke-width="2"/>
+  <ellipse cx="100" cy="18" rx="12" ry="8" fill="#7A9A5C" stroke="#5A7A3C" stroke-width="1.5"/>
+</svg>
