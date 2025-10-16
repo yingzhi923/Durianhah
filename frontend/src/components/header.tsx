@@ -109,7 +109,7 @@ export function Header() {
           priority
         />
         <h1 className="text-2xl font-bold m-0 text-gray-800">
-          Durian Supply Chain
+          Durianhah
         </h1>
       </div>
       <div className="items-center flex gap-3">
@@ -163,10 +163,6 @@ export function Header() {
           }}
           wallets={wallets}
           connectModal={{ size: "wide" }}
-          accountAbstraction={{
-            chain: kaiaTestnet,
-            sponsorGas: true,
-          }}
         />
       </div>
     </div>
