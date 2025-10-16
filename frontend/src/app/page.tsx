@@ -48,7 +48,7 @@ export default function Home() {
             Blockchain-based transparent, trustworthy, and traceable durian supply chain platform
           </p>
           <p className="text-lg text-gray-500 mt-4">
-            From farm to table, every step is clearly visible
+            From Tree to Table, Verified on Chain.
           </p>
         </div>
 
@@ -91,60 +91,70 @@ export default function Home() {
         <div className="mb-16">
           <h2 className="text-3xl font-bold text-center mb-12">Five-Phase Supply Chain Process</h2>
           <div className="grid md:grid-cols-5 gap-4">
-            <Card className="p-6 text-center">
-              <div className="flex justify-center mb-4">
-                <div className="bg-green-100 p-4 rounded-full">
-                  <span className="text-3xl">🌱</span>
+            <Link href="/submit/farming">
+              <Card className="p-6 text-center hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-green-500">
+                <div className="flex justify-center mb-4">
+                  <div className="bg-green-100 p-4 rounded-full">
+                    <span className="text-3xl">🌱</span>
+                  </div>
                 </div>
-              </div>
-              <h3 className="font-bold mb-2">Phase 1</h3>
-              <p className="text-sm text-gray-600">Farming</p>
-              <p className="text-xs text-gray-500 mt-2">IoT monitoring, fertilization records</p>
-            </Card>
+                <h3 className="font-bold mb-2">Phase 1</h3>
+                <p className="text-sm text-gray-600">Farming</p>
+                <p className="text-xs text-gray-500 mt-2">IoT monitoring, fertilization records</p>
+              </Card>
+            </Link>
 
-            <Card className="p-6 text-center">
-              <div className="flex justify-center mb-4">
-                <div className="bg-yellow-100 p-4 rounded-full">
-                  <span className="text-3xl">✂️</span>
+            <Link href="/submit/harvest">
+              <Card className="p-6 text-center hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-yellow-500">
+                <div className="flex justify-center mb-4">
+                  <div className="bg-yellow-100 p-4 rounded-full">
+                    <span className="text-3xl">✂️</span>
+                  </div>
                 </div>
-              </div>
-              <h3 className="font-bold mb-2">Phase 2</h3>
-              <p className="text-sm text-gray-600">Harvest</p>
-              <p className="text-xs text-gray-500 mt-2">Weight, quality inspection</p>
-            </Card>
+                <h3 className="font-bold mb-2">Phase 2</h3>
+                <p className="text-sm text-gray-600">Harvest</p>
+                <p className="text-xs text-gray-500 mt-2">Weight, quality inspection</p>
+              </Card>
+            </Link>
 
-            <Card className="p-6 text-center">
-              <div className="flex justify-center mb-4">
-                <div className="bg-blue-100 p-4 rounded-full">
-                  <Package className="h-8 w-8 text-blue-600" />
+            <Link href="/submit/packing">
+              <Card className="p-6 text-center hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-blue-500">
+                <div className="flex justify-center mb-4">
+                  <div className="bg-blue-100 p-4 rounded-full">
+                    <Package className="h-8 w-8 text-blue-600" />
+                  </div>
                 </div>
-              </div>
-              <h3 className="font-bold mb-2">Phase 3</h3>
-              <p className="text-sm text-gray-600">Packing</p>
-              <p className="text-xs text-gray-500 mt-2">QA testing, batch management</p>
-            </Card>
+                <h3 className="font-bold mb-2">Phase 3</h3>
+                <p className="text-sm text-gray-600">Packing</p>
+                <p className="text-xs text-gray-500 mt-2">QA testing, batch management</p>
+              </Card>
+            </Link>
 
-            <Card className="p-6 text-center">
-              <div className="flex justify-center mb-4">
-                <div className="bg-purple-100 p-4 rounded-full">
-                  <Truck className="h-8 w-8 text-purple-600" />
+            <Link href="/submit/logistics">
+              <Card className="p-6 text-center hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-purple-500">
+                <div className="flex justify-center mb-4">
+                  <div className="bg-purple-100 p-4 rounded-full">
+                    <Truck className="h-8 w-8 text-purple-600" />
+                  </div>
                 </div>
-              </div>
-              <h3 className="font-bold mb-2">Phase 4</h3>
-              <p className="text-sm text-gray-600">Logistics</p>
-              <p className="text-xs text-gray-500 mt-2">Temperature monitoring, route tracking</p>
-            </Card>
+                <h3 className="font-bold mb-2">Phase 4</h3>
+                <p className="text-sm text-gray-600">Logistics</p>
+                <p className="text-xs text-gray-500 mt-2">Temperature monitoring, route tracking</p>
+              </Card>
+            </Link>
 
-            <Card className="p-6 text-center">
-              <div className="flex justify-center mb-4">
-                <div className="bg-orange-100 p-4 rounded-full">
-                  <Store className="h-8 w-8 text-orange-600" />
+            <Link href="/submit/retail">
+              <Card className="p-6 text-center hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-orange-500">
+                <div className="flex justify-center mb-4">
+                  <div className="bg-orange-100 p-4 rounded-full">
+                    <Store className="h-8 w-8 text-orange-600" />
+                  </div>
                 </div>
-              </div>
-              <h3 className="font-bold mb-2">Phase 5</h3>
-              <p className="text-sm text-gray-600">Retail</p>
-              <p className="text-xs text-gray-500 mt-2">Store information, pricing</p>
-            </Card>
+                <h3 className="font-bold mb-2">Phase 5</h3>
+                <p className="text-sm text-gray-600">Retail</p>
+                <p className="text-xs text-gray-500 mt-2">Store information, pricing</p>
+              </Card>
+            </Link>
           </div>
         </div>
 

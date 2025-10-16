@@ -47,9 +47,9 @@ export default function SubmitFarming() {
   const [formData, setFormData] = useState({
     avgTemp: "",
     avgHumidity: "",
-    area: "",
-    fertilizer: "",
-    pestControl: "",
+    area: "1000",
+    fertilizer: "Organic fertilizer 500kg applied monthly, NPK ratio 15-15-15",
+    pestControl: "Biological control using predatory mites and regular monitoring",
   });
   const [minting, setMinting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -147,7 +147,7 @@ export default function SubmitFarming() {
         timestamp: Date.now(),
         avgTemp: formData.avgTemp || avgTempFromIoT.toFixed(1),
         avgHumidity: formData.avgHumidity || avgHumidityFromIoT.toFixed(1),
-        area: parseFloat(formData.area),
+        area: formData.area ? parseFloat(formData.area) : 1000,
         fertilizer: formData.fertilizer,
         pestControl: formData.pestControl,
         iotRecords: iotData.length
@@ -309,9 +309,14 @@ export default function SubmitFarming() {
                     <CheckCircle className="inline h-5 w-5 text-green-600 mr-2" />
                     <span className="font-medium text-green-900">NFT Minted Successfully!</span>
                     {mintedTokenId && (
-                      <p className="text-sm text-green-800 mt-2">
-                        Token ID: <span className="font-mono font-bold">#{mintedTokenId}</span>
-                      </p>
+                      <>
+                        <p className="text-sm text-green-800 mt-2">
+                          Token ID: <span className="font-mono font-bold">#{mintedTokenId}</span>
+                        </p>
+                        <p className="text-sm text-green-700 mt-1 font-medium">
+                          Please COPY the TokenID for future steps.
+                        </p>
+                      </>
                     )}
                   </div>
                   
@@ -392,7 +397,7 @@ export default function SubmitFarming() {
                     </table>
                   </div>
 
-                  <div className="mt-4 grid md:grid-cols-2 gap-4 p-4 bg-blue-50 rounded-lg">
+                  <div className="mt-4 grid md:grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg">
                     <div>
                       <p className="text-sm font-medium text-blue-900">Average Temperature</p>
                       <p className="text-2xl font-bold text-blue-600">
@@ -403,6 +408,12 @@ export default function SubmitFarming() {
                       <p className="text-sm font-medium text-blue-900">Average Humidity</p>
                       <p className="text-2xl font-bold text-blue-600">
                         {(iotData.reduce((sum, d) => sum + parseFloat(d.airHumidity), 0) / iotData.length).toFixed(1)}%
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-blue-900">Planting Place</p>
+                      <p className="text-lg font-bold text-blue-600">
+                        3°28'12.4"N 102°26'00.8"E
                       </p>
                     </div>
                   </div>
@@ -457,7 +468,7 @@ export default function SubmitFarming() {
 
                     <div>
                       <label className="block text-sm font-medium mb-2">
-                        Cultivation Area (m²) *
+                        Cultivation Area (m²)
                       </label>
                       <Input
                         type="number"
@@ -465,7 +476,6 @@ export default function SubmitFarming() {
                         value={formData.area}
                         onChange={(e) => setFormData({ ...formData, area: e.target.value })}
                         placeholder="e.g., 1000"
-                        required
                       />
                       <p className="text-xs text-gray-500 mt-1">
                         Total cultivation area for durian trees

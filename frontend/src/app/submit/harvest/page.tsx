@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import {
   useActiveAccount,
@@ -27,14 +27,13 @@ import {
   CheckCircle,
   Shield,
   Scissors,
-  Database,
 } from "lucide-react";
 
 // 有些打包器里需要，否则 personal_sign 传 hex 可能会用到 Buffer
 // @ts-ignore
 import { Buffer } from "buffer";
 
-/** 统一签名：点击“Start Harvest Submission”时先弹钱包 */
+/** 统一签名：点击"Start Harvest Submission"时先弹钱包 */
 async function requestUserSignature(address?: string) {
   if (!address) throw new Error("Wallet not connected");
   const msg = `Durian Supply Chain — authorize Phase 2 submission
@@ -49,35 +48,6 @@ Timestamp: ${Date.now()}`;
   });
   return { msg, sig };
 }
-
-/**
- * 生成 10 条模拟采样（仅用于“授权成功后显示数据”的效果）
- */
-type SampleRow = {
-  id: number;
-  weightKg: number;
-  brix: number;
-  grade: "A" | "B" | "C";
-  defects: "None" | "Minor blemish";
-};
-const genSamples = (): SampleRow[] => {
-  const arr: SampleRow[] = [];
-  for (let i = 1; i <= 10; i++) {
-    const weight = 1.5 + Math.random() * 0.8; // 1.5~2.3kg
-    const brix = 14 + Math.random() * 3; // 14~17 °Bx
-    const g = (["A", "B", "A", "B", "A", "C"][Math.floor(Math.random() * 6)] ||
-      "A") as "A" | "B" | "C";
-    const d: SampleRow["defects"] = Math.random() > 0.85 ? "Minor blemish" : "None";
-    arr.push({
-      id: i,
-      weightKg: Number(weight.toFixed(2)),
-      brix: Number(brix.toFixed(1)),
-      grade: g,
-      defects: d,
-    });
-  }
-  return arr;
-};
 
 export default function SubmitHarvest() {
   const account = useActiveAccount();
@@ -103,17 +73,6 @@ export default function SubmitHarvest() {
     defects: "",
     photoCid: "",
   });
-
-  // —— 授权成功后展示的数据区（对标 Phase1 的 IoT Data） —— //
-  const [samples] = useState<SampleRow[]>(genSamples());
-  const avgWeight = useMemo(() => {
-    if (!samples.length) return "—";
-    return (samples.reduce((s, r) => s + r.weightKg, 0) / samples.length).toFixed(2);
-  }, [samples]);
-  const avgBrix = useMemo(() => {
-    if (!samples.length) return "—";
-    return (samples.reduce((s, r) => s + r.brix, 0) / samples.length).toFixed(1);
-  }, [samples]);
 
   // 进入页面时做一次静默预检查（不弹窗）
   useEffect(() => {
@@ -403,73 +362,6 @@ export default function SubmitHarvest() {
                 </div>
               )}
             </Card>
-
-            {/* 授权成功后显示的数据区 */}
-            {verified && (
-              <Card className="p-8 mb-6">
-                <div className="mb-6">
-                  <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Database className="h-6 w-6 text-blue-600" />
-                    Harvest Samples (10 Rows)
-                  </h2>
-                  <p className="text-gray-600 mt-2">
-                    Authorized preview of quality sampling and expected output
-                  </p>
-                </div>
-
-                <div className="mt-4 grid md:grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-blue-900">Average Weight</p>
-                    <p className="text-2xl font-bold text-blue-600">{avgWeight} kg</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-blue-900">Average Brix</p>
-                    <p className="text-2xl font-bold text-blue-600">{avgBrix} °Bx</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-blue-900">Planned Grade</p>
-                    <p className="text-2xl font-bold text-blue-600">{form.qualityGrade || "A"}</p>
-                  </div>
-                </div>
-
-                <div className="overflow-x-auto mt-4">
-                  <table className="min-w-full divide-y divide-gray-200 border">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">SAMPLE#</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">GRADE</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">WEIGHT (KG)</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">BRIX (°BX)</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">DEFECTS</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {samples.map((r) => (
-                        <tr key={r.id} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900 border-r">{r.id}</td>
-                          <td className="px-4 py-3 text-sm border-r">
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                r.grade === "A"
-                                  ? "bg-green-100 text-green-800"
-                                  : r.grade === "B"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-yellow-100 text-yellow-800"
-                              }`}
-                            >
-                              {r.grade}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-700 border-r">{r.weightKg.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700 border-r">{r.brix.toFixed(1)}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{r.defects}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </Card>
-            )}
 
             {/* 提交表单 */}
             {verified && (
