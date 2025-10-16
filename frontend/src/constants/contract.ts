@@ -3,9 +3,9 @@ import { defineChain, getContract } from "thirdweb";
 import { base } from "thirdweb/chains";
 import { kaiaTestnet } from "@/chain.config";
 
-export const tokenContractAddress = "0x8f2Bf7627Ebf500f400bfe040e23bC8D31556f92";
-export const durianNFTContractAddress = "0xD0Db9396731151839ADa176EA228290Fa7A3f5ac";
-export const supplyChainManagerContractAddress = "0xBb894d3BD8a6A89F31836E5A87D77a3a91f80b33";
+export const tokenContractAddress = "0x038307854d8429af18e2e8fB84a5d2Ff79031C8C";
+export const durianNFTContractAddress = "0x08d9776F2cd5C0973B3E42b7E8f98C044FA782D4";
+export const supplyChainManagerContractAddress = "0x48f474123947AE88670Dd495aaB2133277b9DD4C";
 
 export const nftContract = getContract({
     client: client,

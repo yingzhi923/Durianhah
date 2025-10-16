@@ -65,12 +65,11 @@ export default function SubmitHarvest() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
   const [form, setForm] = useState({
-    harvestDate: "",
-    fruitCount: "",
-    avgWeightKg: "",
-    brix: "",
+    harvestDate: new Date().toISOString().split('T')[0],
+    avgWeightKg: "1.85",
+    brix: "15.4",
     qualityGrade: "A",
-    defects: "",
+    defects: "Minor surface blemishes on <2% of fruits; no pest damage observed",
     photoCid: "",
   });
 
@@ -186,7 +185,6 @@ export default function SubmitHarvest() {
     if (
       !tokenId ||
       !form.harvestDate ||
-      !form.fruitCount ||
       !form.avgWeightKg ||
       !form.brix
     ) {
@@ -204,7 +202,6 @@ export default function SubmitHarvest() {
         phase: 2,
         timestamp: Date.now(),
         harvestDate: form.harvestDate,
-        fruitCount: Number(form.fruitCount),
         avgWeightKg: Number(form.avgWeightKg),
         brix: Number(form.brix),
         qualityGrade: form.qualityGrade,
@@ -221,7 +218,7 @@ export default function SubmitHarvest() {
       const packedData =
         (BigInt(Math.floor(Number(form.brix) * 10)) << BigInt(176)) |
         (BigInt(Math.floor(Number(form.avgWeightKg) * 100)) << BigInt(96)) |
-        BigInt(Math.floor(Number(form.fruitCount)));
+        BigInt(0); // 不再使用 fruitCount
 
       const tx = prepareContractCall({
         contract: supplyChainContract,
@@ -239,14 +236,13 @@ export default function SubmitHarvest() {
         duration: 5000,
       });
 
-      // 保留 tokenId，清空表单
+      // 保留 tokenId，重置表单为默认值
       setForm({
-        harvestDate: "",
-        fruitCount: "",
-        avgWeightKg: "",
-        brix: "",
+        harvestDate: new Date().toISOString().split('T')[0],
+        avgWeightKg: "1.85",
+        brix: "15.4",
         qualityGrade: "A",
-        defects: "",
+        defects: "Minor surface blemishes on <2% of fruits; no pest damage observed",
         photoCid: "",
       });
     } catch (err: any) {
@@ -417,19 +413,7 @@ export default function SubmitHarvest() {
                     </div>
                   </div>
 
-                  <div className="grid md:grid-cols-3 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Fruit Count *
-                      </label>
-                      <Input
-                        type="number"
-                        placeholder="e.g., 1200"
-                        value={form.fruitCount}
-                        onChange={(e) => setForm({ ...form, fruitCount: e.target.value })}
-                      />
-                    </div>
-
+                  <div className="grid md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium mb-2">
                         Avg Weight per Fruit (kg) *

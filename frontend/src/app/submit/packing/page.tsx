@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useActiveAccount, useSendAndConfirmTransaction } from "thirdweb/react";
 import { readContract, prepareContractCall } from "thirdweb";
@@ -20,7 +20,7 @@ import {
   CheckCircle,
   Shield,
   Package,
-  Database,
+  FileCheck,
 } from "lucide-react";
 
 // 某些构建环境下 personal_sign 传 hex 需用到 Buffer
@@ -42,27 +42,6 @@ Timestamp: ${Date.now()}`;
   return { msg, sig };
 }
 
-// ------- mock sample data shown AFTER permission verified -------
-type BoxRow = {
-  boxNo: number;
-  grade: "A" | "B" | "C";
-  weightKg: number;
-  cold: boolean;
-  sealId: string;
-};
-const genBoxes = (): BoxRow[] => {
-  const list: BoxRow[] = [];
-  for (let i = 1; i <= 10; i++) {
-    const w = 12 + Math.random() * 6; // 12~18kg per box
-    const grade = (["A", "B", "A", "A", "B", "C"][Math.floor(Math.random() * 6)] ||
-      "A") as "A" | "B" | "C";
-    const cold = Math.random() > 0.3;
-    const seal = `SEAL-${1000 + i}`;
-    list.push({ boxNo: i, grade, weightKg: Number(w.toFixed(2)), cold, sealId: seal });
-  }
-  return list;
-};
-
 export default function SubmitPacking() {
   const account = useActiveAccount();
   const { mutateAsync: sendTx } = useSendAndConfirmTransaction();
@@ -79,27 +58,19 @@ export default function SubmitPacking() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
   const [form, setForm] = useState({
-    packingDate: "",
-    facilityId: "",
-    boxCount: "",
-    avgBoxWeightKg: "",
+    packingDate: new Date().toISOString().split('T')[0],
+    facilityId: "FAC-001",
+    avgBoxWeightKg: "15.50",
     packagingType: "Carton", // Carton / Foam
     coldChain: "true",       // true / false
-    sealBatchId: "",
-    notes: "",
+    sealBatchId: "SEAL-BATCH-2025-10",
+    notes: "Packed using food-grade liners; pallets heat-treated per ISPM-15 standards",
     photoCid: "",
   });
 
-  // data area shown after verified
-  const [boxes] = useState<BoxRow[]>(genBoxes());
-  const totalWeight = useMemo(() => {
-    if (!boxes.length) return "—";
-    return boxes.reduce((s, b) => s + b.weightKg, 0).toFixed(2) + " kg";
-  }, [boxes]);
-  const avgBoxWeight = useMemo(() => {
-    if (!boxes.length) return "—";
-    return (boxes.reduce((s, b) => s + b.weightKg, 0) / boxes.length).toFixed(2) + " kg";
-  }, [boxes]);
+  // Verification state for Phase 2 (Harvest)
+  const [verifyingPhase2, setVerifyingPhase2] = useState(false);
+  const [phase2Verified, setPhase2Verified] = useState(false);
 
   // 进入页面/地址变更时静默预检 PACKER_ROLE（不弹窗）
   useEffect(() => {
@@ -128,6 +99,57 @@ export default function SubmitPacking() {
       }
     })();
   }, [account?.address]);
+
+  // 核验 Phase 2 (Harvest)
+  const handleVerifyPhase2 = async () => {
+    if (!account) {
+      toast({
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet first",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!tokenId) {
+      toast({
+        title: "Token ID Required",
+        description: "Please enter the Token ID first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setVerifyingPhase2(true);
+    try {
+      // 先签名确认核验
+      await requestUserSignature(account.address);
+
+      // 调用合约的 verifyPhase 函数
+      const tx = prepareContractCall({
+        contract: supplyChainContract,
+        method: "function verifyPhase(uint256 tokenId, uint8 phase)",
+        params: [BigInt(tokenId), 2], // 核验 Phase 2
+      });
+
+      await sendTx(tx);
+
+      setPhase2Verified(true);
+      toast({
+        title: "Phase 2 Verified! ✅",
+        description: "Harvest data has been verified. You can now proceed to submit packing data.",
+        duration: 5000,
+      });
+    } catch (e: any) {
+      console.warn("Verification failed:", e);
+      toast({
+        title: "Verification Failed",
+        description: getErrorMessage(e) || "Failed to verify Phase 2. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setVerifyingPhase2(false);
+    }
+  };
 
   // 点击按钮：先签名 -> 再校验 hasRole
   const handleVerifyPermission = async () => {
@@ -207,10 +229,17 @@ export default function SubmitPacking() {
       });
       return;
     }
+    if (!phase2Verified) {
+      toast({
+        title: "Phase 2 Not Verified",
+        description: "Please verify Phase 2 (Harvest) data first before submitting packing data.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (
       !tokenId ||
       !form.packingDate ||
-      !form.boxCount ||
       !form.avgBoxWeightKg ||
       !form.packagingType
     ) {
@@ -229,7 +258,6 @@ export default function SubmitPacking() {
         timestamp: Date.now(),
         packingDate: form.packingDate,
         facilityId: form.facilityId,
-        boxCount: Number(form.boxCount),
         avgBoxWeightKg: Number(form.avgBoxWeightKg),
         packagingType: form.packagingType,
         coldChain: form.coldChain === "true",
@@ -246,11 +274,10 @@ export default function SubmitPacking() {
       /**
        * Pack numbers:
        * [255........................................0]
-       * | avgBoxWeightKg*100 << 176 | boxCount << 96 | coldChain(0/1) |
+       * | avgBoxWeightKg*100 << 176 | coldChain(0/1) |
        */
       const packedData =
         (BigInt(Math.floor(Number(form.avgBoxWeightKg) * 100)) << BigInt(176)) |
-        (BigInt(Math.floor(Number(form.boxCount))) << BigInt(96)) |
         BigInt(form.coldChain === "true" ? 1 : 0);
 
       const tx = prepareContractCall({
@@ -270,14 +297,13 @@ export default function SubmitPacking() {
       });
 
       setForm({
-        packingDate: "",
-        facilityId: "",
-        boxCount: "",
-        avgBoxWeightKg: "",
+        packingDate: new Date().toISOString().split('T')[0],
+        facilityId: "FAC-001",
+        avgBoxWeightKg: "15.50",
         packagingType: "Carton",
         coldChain: "true",
-        sealBatchId: "",
-        notes: "",
+        sealBatchId: "SEAL-BATCH-2025-10",
+        notes: "Packed using food-grade liners; pallets heat-treated per ISPM-15 standards",
         photoCid: "",
       });
     } catch (err: any) {
@@ -389,89 +415,81 @@ export default function SubmitPacking() {
               )}
             </Card>
 
-            {/* Step 4：数据区（通过后显示） */}
-            {verified && (
+            {/* Step 4: Verify Phase 2 (Harvest) Data */}
+            {verified && !phase2Verified && (
               <Card className="p-8 mb-6">
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Database className="h-6 w-6 text-blue-600" />
-                    Packing Overview (10 Boxes)
+                    <FileCheck className="h-6 w-6 text-blue-600" />
+                    Verify Phase 2 (Harvest) Data
                   </h2>
                   <p className="text-gray-600 mt-2">
-                    Authorized preview of planned boxes, weights and cold-chain status
+                    Before packing, you must verify that the harvest data submitted by the farmer is accurate
                   </p>
                 </div>
 
-                <div className="mt-4 grid md:grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-blue-900">Total Weight</p>
-                    <p className="text-2xl font-bold text-blue-600">{totalWeight}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-blue-900">Average Box Weight</p>
-                    <p className="text-2xl font-bold text-blue-600">{avgBoxWeight}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-blue-900">Cold-chain Ratio</p>
-                    <p className="text-2xl font-bold text-blue-600">
-                      {boxes.length
-                        ? Math.round(
-                            (boxes.filter((b) => b.cold).length / boxes.length) * 100
-                          ) + "%"
-                        : "—"}
-                    </p>
-                  </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <h4 className="font-medium text-blue-900 mb-2">📋 Verification Requirements</h4>
+                  <ul className="text-sm text-blue-800 space-y-1">
+                    <li>• Review the harvest data submitted in Phase 2</li>
+                    <li>• Confirm the quality, weight, and brix measurements are accurate</li>
+                    <li>• Sign the verification to enable Phase 3 reward claims</li>
+                    <li>• This verification is required by the smart contract</li>
+                  </ul>
                 </div>
 
-                <div className="overflow-x-auto mt-4">
-                  <table className="min-w-full divide-y divide-gray-200 border">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">BOX#</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">GRADE</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">WEIGHT (KG)</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">COLD-CHAIN</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">SEAL ID</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {boxes.map((b) => (
-                        <tr key={b.boxNo} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900 border-r">{b.boxNo}</td>
-                          <td className="px-4 py-3 text-sm border-r">
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                b.grade === "A"
-                                  ? "bg-green-100 text-green-800"
-                                  : b.grade === "B"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-yellow-100 text-yellow-800"
-                              }`}
-                            >
-                              {b.grade}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-700 border-r">{b.weightKg.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700 border-r">
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                b.cold ? "bg-blue-100 text-blue-800" : "bg-gray-100 text-gray-800"
-                              }`}
-                            >
-                              {b.cold ? "Yes" : "No"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-sm text-gray-700">{b.sealId}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">
+                      Enter Token ID to Verify *
+                    </label>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="e.g., 1760..."
+                      value={tokenId}
+                      onChange={(e) => setTokenId(e.target.value.trim())}
+                    />
+                  </div>
+
+                  <Button
+                    onClick={handleVerifyPhase2}
+                    disabled={verifyingPhase2 || !tokenId}
+                    className="w-full h-12 text-lg bg-blue-600 text-white hover:bg-blue-700"
+                    size="lg"
+                  >
+                    {verifyingPhase2 ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Verifying Phase 2...
+                      </>
+                    ) : (
+                      <>
+                        <FileCheck className="mr-2 h-5 w-5" />
+                        Verify & Sign Harvest Data
+                      </>
+                    )}
+                  </Button>
                 </div>
               </Card>
             )}
 
-            {/* Step 5：提交表单（版式同前） */}
-            {verified && (
+            {verified && phase2Verified && (
+              <Card className="p-6 mb-6 bg-green-50 border-green-200">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="h-6 w-6 text-green-600" />
+                  <div>
+                    <h3 className="font-bold text-green-900">Phase 2 Verified Successfully!</h3>
+                    <p className="text-sm text-green-700 mt-1">
+                      You can now proceed to submit packing data for Token #{tokenId}
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {/* Step 5：提交表单（只有在 Phase 2 验证后才显示） */}
+            {verified && phase2Verified && (
               <Card className="p-8">
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold flex items-center gap-2">
@@ -520,19 +538,7 @@ export default function SubmitPacking() {
                     </div>
                   </div>
 
-                  <div className="grid md:grid-cols-3 gap-6">
-                    <div>
-                      <label className="block text-sm font-medium mb-2">
-                        Box Count *
-                      </label>
-                      <Input
-                        type="number"
-                        placeholder="e.g., 120"
-                        value={form.boxCount}
-                        onChange={(e) => setForm({ ...form, boxCount: e.target.value })}
-                      />
-                    </div>
-
+                  <div className="grid md:grid-cols-2 gap-6">
                     <div>
                       <label className="block text-sm font-medium mb-2">
                         Avg Box Weight (kg) *

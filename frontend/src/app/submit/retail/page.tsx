@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useActiveAccount, useSendAndConfirmTransaction } from "thirdweb/react";
 import { readContract, prepareContractCall } from "thirdweb";
@@ -14,7 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
-import { Loader2, Upload, CheckCircle, Shield, Store, Database } from "lucide-react";
+import { Loader2, Upload, CheckCircle, Shield, Store, FileCheck } from "lucide-react";
 
 // @ts-ignore - for personal_sign encoding
 import { Buffer } from "buffer";
@@ -34,37 +34,7 @@ Timestamp: ${Date.now()}`;
   return { msg, sig };
 }
 
-/* ========== Mock POS data（仅用于授权成功后的展示区） ========== */
-type PosRow = {
-  idx: number;
-  date: string;       // YYYY-MM-DD
-  soldUnits: number;  // 件数
-  pricePerKg: number; // RM/kg
-  qrScans: number;    // 扫码次数
-  feedback: "Good" | "Neutral" | "Bad";
-};
-const genPos = (): PosRow[] => {
-  const rows: PosRow[] = [];
-  const base = new Date();
-  base.setDate(base.getDate() - 6);
-  for (let i = 0; i < 7; i++) {
-    const d = new Date(base.getTime() + i * 86400000);
-    const sold = 20 + Math.floor(Math.random() * 40);
-    const price = 28 + Math.random() * 6;
-    const scans = 10 + Math.floor(Math.random() * 50);
-    const fb: PosRow["feedback"] =
-      Math.random() > 0.75 ? "Bad" : Math.random() > 0.4 ? "Good" : "Neutral";
-    rows.push({
-      idx: i + 1,
-      date: d.toISOString().slice(0, 10),
-      soldUnits: sold,
-      pricePerKg: Number(price.toFixed(2)),
-      qrScans: scans,
-      feedback: fb,
-    });
-  }
-  return rows;
-};
+
 
 /* ========== 角色获取：优先 RETAILER_ROLE；没有则回退 FARMER_ROLE 以兼容 demo 合约 ========== */
 async function getRetailRoleBytes32() {
@@ -109,6 +79,10 @@ export default function SubmitRetail() {
   const [verified, setVerified] = useState(false);
   const [hasRole, setHasRole] = useState(false);
 
+  // —— Phase 4 verification —— //
+  const [verifyingPhase4, setVerifyingPhase4] = useState(false);
+  const [phase4Verified, setPhase4Verified] = useState(false);
+
   // —— 提交 & 成功状态 —— //
   const [tokenId, setTokenId] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
@@ -120,32 +94,29 @@ export default function SubmitRetail() {
   const [nowTs, setNowTs] = useState<number>(Date.now());
   const tickRef = useRef<number | null>(null);
 
-  // —— 表单 —— //
+  // Get current date in YYYY-MM-DD format
+  const getTodayDate = () => {
+    const today = new Date();
+    return today.toISOString().split('T')[0];
+  };
+
+  // —— 表单（自动填充默认值，用户可修改） —— //
   const [form, setForm] = useState({
-    receivedDate: "",
-    saleDate: "",
-    storeId: "",
-    city: "",
-    unitsReceived: "",
-    unitsSold: "",
-    pricePerKg: "",
-    avgStoreTempC: "",
-    customerNotes: "",
+    receivedDate: getTodayDate(),
+    saleDate: getTodayDate(),
+    storeId: "STORE-2025-001",
+    city: "Kuala Lumpur",
+    unitsReceived: "50",
+    unitsSold: "45",
+    pricePerKg: "32.00",
+    avgStoreTempC: "4.5",
+    customerNotes: "Premium quality, excellent customer feedback. Durians stored in optimal conditions with regular temperature monitoring.",
     photoCid: "",
   });
 
-  // —— 授权成功后展示的数据 —— //
-  const [pos] = useState<PosRow[]>(genPos());
-  const totalSold = useMemo(() => pos.reduce((s, r) => s + r.soldUnits, 0), [pos]);
-  const avgPrice = useMemo(
-    () => (pos.length ? (pos.reduce((s, r) => s + r.pricePerKg, 0) / pos.length).toFixed(2) : "—"),
-    [pos]
-  );
-  const totalScans = useMemo(() => pos.reduce((s, r) => s + r.qrScans, 0), [pos]);
-
   // —— 倒计时相关 —— //
   const LS_KEY = (tid: string | number, phase: number) => `durian_unlockAt_${tid}_${phase}`;
-  const remainMs = useMemo(() => (unlockAt ? Math.max(0, unlockAt - nowTs) : 0), [unlockAt, nowTs]);
+  const remainMs = unlockAt ? Math.max(0, unlockAt - nowTs) : 0;
   const canClaim = remainMs === 0 && !!unlockAt;
   const fmt = (ms: number) => {
     const sec = Math.ceil(ms / 1000);
@@ -213,7 +184,7 @@ export default function SubmitRetail() {
 
       setHasRole(true);
       setVerified(true);
-      toast({ title: "Permission Verified ✅", description: "You can proceed to submit retail data." });
+      toast({ title: "Permission Verified ✅", description: "You can proceed to verify Phase 4 data." });
     } catch (err) {
       toast({
         title: "Verification Failed",
@@ -222,6 +193,43 @@ export default function SubmitRetail() {
       });
     } finally {
       setChecking(false);
+    }
+  };
+
+  // —— Verify Phase 4 (Logistics) Data —— //
+  const handleVerifyPhase4 = async () => {
+    if (!account) {
+      toast({ title: "Wallet Not Connected", description: "Please connect your wallet first", variant: "destructive" });
+      return;
+    }
+    if (!tokenId) {
+      toast({ title: "Token ID Required", description: "Please enter the Durian Token ID first", variant: "destructive" });
+      return;
+    }
+
+    setVerifyingPhase4(true);
+    try {
+      const tx = prepareContractCall({
+        contract: supplyChainContract,
+        method: "function verifyPhase(uint256 tokenId, uint8 phase)",
+        params: [BigInt(tokenId), 4],
+      });
+
+      await sendTx(tx);
+      setPhase4Verified(true);
+      toast({
+        title: "Phase 4 Verified! ✅",
+        description: `Logistics data for Token #${tokenId} has been verified. You can now submit retail data.`,
+        duration: 5000,
+      });
+    } catch (err: any) {
+      toast({
+        title: "Verification Failed",
+        description: getErrorMessage(err) || "Could not verify Phase 4 data",
+        variant: "destructive",
+      });
+    } finally {
+      setVerifyingPhase4(false);
     }
   };
 
@@ -235,6 +243,10 @@ export default function SubmitRetail() {
     }
     if (!verified) {
       toast({ title: "Not Verified", description: "Please verify permission first.", variant: "destructive" });
+      return;
+    }
+    if (!phase4Verified) {
+      toast({ title: "Phase 4 Not Verified", description: "Please verify Phase 4 (Logistics) data first.", variant: "destructive" });
       return;
     }
     if (!tokenId || !form.receivedDate || !form.saleDate || !form.unitsSold || !form.pricePerKg || !form.avgStoreTempC) {
@@ -297,15 +309,15 @@ export default function SubmitRetail() {
       });
 
       setForm({
-        receivedDate: "",
-        saleDate: "",
-        storeId: "",
-        city: "",
-        unitsReceived: "",
-        unitsSold: "",
-        pricePerKg: "",
-        avgStoreTempC: "",
-        customerNotes: "",
+        receivedDate: getTodayDate(),
+        saleDate: getTodayDate(),
+        storeId: "STORE-2025-001",
+        city: "Kuala Lumpur",
+        unitsReceived: "50",
+        unitsSold: "45",
+        pricePerKg: "32.00",
+        avgStoreTempC: "4.5",
+        customerNotes: "Premium quality, excellent customer feedback. Durians stored in optimal conditions with regular temperature monitoring.",
         photoCid: "",
       });
     } catch (err: any) {
@@ -330,16 +342,16 @@ export default function SubmitRetail() {
     }
     try {
       const tryMethods = [
-        "function claimReward(uint256 tokenId, uint8 phase)",
-        "function claimPhaseReward(uint256 tokenId, uint8 phase)",
-        "function claim(uint256 tokenId, uint8 phase)",
+        "function claimReward(uint256 tokenId, uint8 phase)" as const,
+        "function claimPhaseReward(uint256 tokenId, uint8 phase)" as const,
+        "function claim(uint256 tokenId, uint8 phase)" as const,
       ];
       let sent = false;
       for (const sig of tryMethods) {
         try {
           const tx = prepareContractCall({
             contract: supplyChainContract,
-            method: sig,
+            method: sig as any,
             params: [BigInt(tokenId), 5],
           });
           await sendTx(tx);
@@ -474,80 +486,83 @@ export default function SubmitRetail() {
               )}
             </Card>
 
-            {/* Step 2：授权成功后显示的数据区（与 Phase1 IoT 表格同风格） */}
-            {verified && (
+            {/* Step 2: Verify Phase 4 (Logistics) Data */}
+            {verified && !phase4Verified && (
               <Card className="p-8 mb-6">
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold flex items-center gap-2">
-                    <Database className="h-6 w-6 text-blue-600" />
-                    POS Overview (Last 7 Days)
+                    <FileCheck className="h-6 w-6 text-blue-600" />
+                    Verify Phase 4 (Logistics) Data
                   </h2>
                 </div>
 
-                <div className="mt-4 grid md:grid-cols-3 gap-4 p-4 bg-blue-50 rounded-lg">
-                  <div>
-                    <p className="text-sm font-medium text-blue-900">Total Sold</p>
-                    <p className="text-2xl font-bold text-blue-600">{totalSold}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-blue-900">Average Price</p>
-                    <p className="text-2xl font-bold text-blue-600">RM {avgPrice}</p>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-blue-900">Total QR Scans</p>
-                    <p className="text-2xl font-bold text-blue-600">{totalScans}</p>
-                  </div>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
+                  <p className="text-sm text-blue-900 mb-2">
+                    <strong>Before submitting retail data</strong>, you must verify the logistics (Phase 4) data submitted by the logistics provider.
+                  </p>
+                  <p className="text-xs text-blue-800">
+                    This verification step ensures data integrity and enables the logistics provider to claim their reward after the time lock period.
+                  </p>
                 </div>
 
-                <div className="overflow-x-auto mt-4">
-                  <table className="min-w-full divide-y divide-gray-200 border">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">#</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">DATE</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">SOLD (UNITS)</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">PRICE (RM/KG)</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">QR SCANS</th>
-                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">FEEDBACK</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                      {pos.map((r) => (
-                        <tr key={r.idx} className="hover:bg-gray-50">
-                          <td className="px-4 py-3 text-sm font-medium text-gray-900 border-r">{r.idx}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700 border-r">{r.date}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700 border-r">{r.soldUnits}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700 border-r">RM {r.pricePerKg.toFixed(2)}</td>
-                          <td className="px-4 py-3 text-sm text-gray-700 border-r">{r.qrScans}</td>
-                          <td className="px-4 py-3 text-sm">
-                            <span
-                              className={`px-2 py-1 rounded-full text-xs font-medium ${
-                                r.feedback === "Good"
-                                  ? "bg-green-100 text-green-800"
-                                  : r.feedback === "Neutral"
-                                  ? "bg-blue-100 text-blue-800"
-                                  : "bg-yellow-100 text-yellow-800"
-                              }`}
-                            >
-                              {r.feedback}
-                            </span>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Durian Token ID *</label>
+                    <Input 
+                      type="text" 
+                      inputMode="numeric"
+                      placeholder="e.g., 1760..." 
+                      value={tokenId} 
+                      onChange={(e) => setTokenId(e.target.value.trim())} 
+                    />
+                  </div>
+
+                  <Button
+                    onClick={handleVerifyPhase4}
+                    disabled={verifyingPhase4 || !tokenId}
+                    className="w-full h-12 bg-blue-600 hover:bg-blue-700 text-white"
+                    size="lg"
+                  >
+                    {verifyingPhase4 ? (
+                      <>
+                        <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                        Verifying Phase 4...
+                      </>
+                    ) : (
+                      <>
+                        <FileCheck className="mr-2 h-5 w-5" />
+                        Verify & Sign Logistics Data
+                      </>
+                    )}
+                  </Button>
                 </div>
               </Card>
             )}
 
-            {/* Step 3：提交表单（与前面保持一致的 UI 规范） */}
-            {verified && (
+            {/* Phase 4 Verified Success Message */}
+            {verified && phase4Verified && (
+              <Card className="p-6 mb-6 bg-green-50 border-green-200">
+                <div className="flex items-center gap-3">
+                  <CheckCircle className="h-8 w-8 text-green-600 flex-shrink-0" />
+                  <div>
+                    <h3 className="font-bold text-green-900">Phase 4 Verified!</h3>
+                    <p className="text-sm text-green-800 mt-1">
+                      Logistics data has been verified. You can now proceed to submit retail data below.
+                    </p>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            {/* Step 3: Submit Form (only after Phase 4 is verified) */}
+            {verified && phase4Verified && (
               <Card className="p-8">
                 <div className="mb-6">
                   <h2 className="text-2xl font-bold flex items-center gap-2">
                     <span className="text-3xl">📝</span>
                     Phase 5: Submit Retail Data
                   </h2>
+                  <p className="text-gray-600 mt-2">Complete the form with retail details (auto-filled, editable)</p>
                 </div>
 
                 <form onSubmit={handleSubmit} className="space-y-6">

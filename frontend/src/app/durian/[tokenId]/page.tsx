@@ -101,36 +101,72 @@ export default function DurianDetailPage() {
       // Get phase data for all 5 phases
       const phaseData: PhaseInfo[] = [];
       for (let phase = 1; phase <= 5; phase++) {
-        const status = await readContract({
-          contract: supplyChainContract,
-          method: "function phaseStatus(uint256 tokenId, uint8 phase) view returns (bool submitted, bool verified, bool claimed)",
-          params: [BigInt(tokenId), phase],
-        });
+        try {
+          const status = await readContract({
+            contract: supplyChainContract,
+            method: "function phaseStatus(uint256 tokenId, uint8 phase) view returns (bool submitted, bool verified, bool claimed)",
+            params: [BigInt(tokenId), phase],
+          });
 
-        const meta = await readContract({
-          contract: supplyChainContract,
-          method: "function submitMeta(uint256 tokenId, uint8 phase) view returns (address submitter, uint64 submittedAt, bytes32 dataHash, uint256 packedData, string cid)",
-          params: [BigInt(tokenId), phase],
-        });
+          // Only fetch metadata if phase is submitted
+          let meta = {
+            submitter: "0x0000000000000000000000000000000000000000",
+            submittedAt: BigInt(0),
+            dataHash: "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
+            packedData: BigInt(0),
+            cid: "",
+          };
 
-        const rewardAmount = await readContract({
-          contract: supplyChainContract,
-          method: "function rewardForPhase(uint8 phase) view returns (uint256)",
-          params: [phase],
-        });
+          if (status[0]) {
+            // Phase is submitted, safe to read metadata
+            const metaResult = await readContract({
+              contract: supplyChainContract,
+              method: "function submitMeta(uint256 tokenId, uint8 phase) view returns (address submitter, uint64 submittedAt, bytes32 dataHash, uint256 packedData, string cid)",
+              params: [BigInt(tokenId), phase],
+            });
+            meta = {
+              submitter: metaResult[0],
+              submittedAt: metaResult[1],
+              dataHash: metaResult[2],
+              packedData: metaResult[3],
+              cid: metaResult[4],
+            };
+          }
 
-        phaseData.push({
-          phase,
-          submitted: status[0],
-          verified: status[1],
-          claimed: status[2],
-          submitter: meta[0],
-          submittedAt: Number(meta[1]),
-          dataHash: meta[2],
-          packedData: meta[3],
-          cid: meta[4],
-          reward: rewardAmount,
-        });
+          const rewardAmount = await readContract({
+            contract: supplyChainContract,
+            method: "function rewardForPhase(uint8 phase) view returns (uint256)",
+            params: [phase],
+          });
+
+          phaseData.push({
+            phase,
+            submitted: status[0],
+            verified: status[1],
+            claimed: status[2],
+            submitter: meta.submitter,
+            submittedAt: Number(meta.submittedAt),
+            dataHash: meta.dataHash,
+            packedData: meta.packedData,
+            cid: meta.cid,
+            reward: rewardAmount,
+          });
+        } catch (error) {
+          console.error(`Error loading phase ${phase}:`, error);
+          // Add default data for this phase if error occurs
+          phaseData.push({
+            phase,
+            submitted: false,
+            verified: false,
+            claimed: false,
+            submitter: "0x0000000000000000000000000000000000000000",
+            submittedAt: 0,
+            dataHash: "0x0000000000000000000000000000000000000000000000000000000000000000" as `0x${string}`,
+            packedData: BigInt(0),
+            cid: "",
+            reward: BigInt(0),
+          });
+        }
       }
 
       setPhases(phaseData);
