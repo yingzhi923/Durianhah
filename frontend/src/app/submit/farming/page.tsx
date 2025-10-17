@@ -55,6 +55,8 @@ export default function SubmitFarming() {
   const [submitting, setSubmitting] = useState(false);
   const [mintSuccess, setMintSuccess] = useState(false);
   const [submitSuccess, setSubmitSuccess] = useState(false);
+  const [claiming, setClaiming] = useState(false);
+  const [claimSuccess, setClaimSuccess] = useState(false);
   const [iotData] = useState(generateIoTData());
 
   const handleMintNFT = async () => {
@@ -200,6 +202,53 @@ export default function SubmitFarming() {
     }
   };
 
+  const handleClaimReward = async () => {
+    if (!account) {
+      toast({
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet first",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!mintedTokenId) {
+      toast({
+        title: "No Token ID",
+        description: "Token ID is required to claim reward",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setClaiming(true);
+    try {
+      const claimTx = prepareContractCall({
+        contract: supplyChainContract,
+        method: "function claimReward(uint256 tokenId, uint8 phase)",
+        params: [BigInt(mintedTokenId), 1], // Phase 1
+      });
+
+      await sendTransaction(claimTx);
+
+      setClaimSuccess(true);
+      toast({
+        title: "Reward Claimed! 🎁",
+        description: "Your Phase 1 farming reward has been successfully claimed!",
+        duration: 5000,
+      });
+    } catch (error: any) {
+      console.error("Claim failed:", error);
+      toast({
+        title: "Claim Failed",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
+    } finally {
+      setClaiming(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-yellow-50 to-white">
       <div className="bg-white shadow-sm border-b">
@@ -216,25 +265,86 @@ export default function SubmitFarming() {
         </div>
 
         {submitSuccess ? (
-          <Card className="p-8 text-center">
-            <CheckCircle className="mx-auto h-16 w-16 text-green-500 mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Submission Successful!</h2>
-            <p className="text-gray-600 mb-6">
-              Phase 1 (Farming) data has been successfully submitted to the blockchain
-            </p>
+          <Card className="p-8">
+            <div className="text-center mb-8">
+              <CheckCircle className="mx-auto h-16 w-16 text-green-500 mb-4" />
+              <h2 className="text-2xl font-bold mb-2">Submission Successful!</h2>
+              <p className="text-gray-600">
+                Phase 1 (Farming) data has been successfully submitted to the blockchain
+              </p>
+            </div>
+
+            {/* Reward Claim Section */}
+            {!claimSuccess ? (
+              <div className="mb-8">
+                <div className="bg-gradient-to-r from-green-50 to-blue-50 border-2 border-green-200 rounded-lg p-6 mb-4">
+                  <div className="flex items-start gap-4">
+                    <div className="bg-green-100 rounded-full p-3">
+                      <Leaf className="h-6 w-6 text-green-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="text-lg font-bold text-green-900 mb-2">
+                        🎉 Claim Your Phase 1 Reward!
+                      </h3>
+                      <p className="text-sm text-green-800 mb-3">
+                        Great job completing Phase 1! Your farming reward of <span className="font-bold text-green-700">10 TOKEN</span> is ready to claim.
+                      </p>
+                      <p className="text-xs text-green-700 mb-4">
+                        Phase 1 rewards are automatically verified upon submission - you can claim immediately!
+                      </p>
+                      <Button
+                        onClick={handleClaimReward}
+                        disabled={claiming}
+                        className="w-full h-12 bg-green-600 hover:bg-green-700 text-white text-lg font-semibold"
+                        size="lg"
+                      >
+                        {claiming ? (
+                          <>
+                            <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                            Claiming Reward...
+                          </>
+                        ) : (
+                          <>
+                            🎁 Claim 10 TOKEN Reward
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="mb-8">
+                <div className="bg-gradient-to-r from-green-100 to-emerald-100 border-2 border-green-300 rounded-lg p-6">
+                  <div className="text-center">
+                    <CheckCircle className="mx-auto h-12 w-12 text-green-600 mb-3" />
+                    <h3 className="text-xl font-bold text-green-900 mb-2">
+                      Reward Claimed Successfully! 🎉
+                    </h3>
+                    <p className="text-sm text-green-800">
+                      You have successfully claimed your 10 TOKEN reward for Phase 1 (Farming)!
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Action Buttons */}
             <div className="flex justify-center gap-4">
               <Link href={`/durian/${mintedTokenId}`}>
-                <Button>View Details</Button>
+                <Button size="lg">View Durian Details</Button>
               </Link>
               <Button
                 variant="outline"
+                size="lg"
                 onClick={() => {
                   setSubmitSuccess(false);
                   setMintSuccess(false);
                   setMintedTokenId("");
+                  setClaimSuccess(false);
                 }}
               >
-                Submit Another
+                Submit Another Batch
               </Button>
             </div>
           </Card>

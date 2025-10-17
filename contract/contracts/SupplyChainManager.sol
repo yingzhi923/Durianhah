@@ -173,10 +173,16 @@ contract SupplyChainManager is AccessControl, Pausable, ReentrancyGuard {
 
         _setSubmitted(tokenId, phase);
 
-        // 若为 Retail（phase=5），设置时间锁
+        // Phase 1 自动验证（无前置阶段）
+        if (phase == 1) {
+            _setVerified(tokenId, phase);
+        }
+
+        // 若为 Retail（phase=5），设置时间锁并自动验证
         if (phase == 5) {
             uint64 unlock = uint64(block.timestamp + retailLockPeriod);
             retailReadyAt[tokenId] = unlock;
+            _setVerified(tokenId, phase); // Phase 5 自动验证，只需等时间锁
             emit RetailReadySet(tokenId, unlock);
         }
 

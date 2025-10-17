@@ -15,6 +15,7 @@ import { Loader2, Gift } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { inAppWallet, createWallet } from "thirdweb/wallets";
 import Image from "next/image";
+import Link from "next/link";
 import {
   rewardTokenContract,
   tokenContractAddress,
@@ -100,7 +101,10 @@ export function Header() {
 
   return (
     <div className="flex justify-between items-center py-4">
-      <div className="flex items-center gap-3">
+      <Link 
+        href="/" 
+        className="flex items-center gap-3 hover:opacity-80 transition-opacity cursor-pointer"
+      >
         <Image 
           src="/durian-logo.png" 
           alt="Durian" 
@@ -111,7 +115,7 @@ export function Header() {
         <h1 className="text-2xl font-bold m-0 text-gray-800">
           Durianhah
         </h1>
-      </div>
+      </Link>
       <div className="items-center flex gap-3">
         {account && (
           <Button

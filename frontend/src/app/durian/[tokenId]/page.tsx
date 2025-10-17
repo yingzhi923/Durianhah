@@ -246,12 +246,15 @@ export default function DurianDetailPage() {
   const canClaimPhase = (phaseInfo: PhaseInfo): boolean => {
     if (!phaseInfo.submitted || phaseInfo.claimed) return false;
     
-    if (phaseInfo.phase === 5) {
+    if (phaseInfo.phase === 1) {
+      // Phase 1 is auto-verified on submission, can claim immediately
+      return true;
+    } else if (phaseInfo.phase === 5) {
       // Phase 5 needs 7-day lock
       if (retailReadyAt === 0) return false;
       return Date.now() / 1000 >= retailReadyAt;
     } else {
-      // Phase 1-4 need verification
+      // Phase 2-4 need verification from next phase role
       return phaseInfo.verified;
     }
   };
