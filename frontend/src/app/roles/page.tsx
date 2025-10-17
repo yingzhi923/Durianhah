@@ -3,14 +3,14 @@
 import { useState, useEffect } from "react";
 import { useActiveAccount, useSendAndConfirmTransaction } from "thirdweb/react";
 import { prepareContractCall, readContract } from "thirdweb";
-import { supplyChainContract, nftContract } from "@/constants/contract";
+import { supplyChainContract, nftContract, rewardTokenContract, supplyChainManagerContractAddress } from "@/constants/contract";
 import { ROLES, ROLE_NAMES } from "@/types";
 import { shortenAddress, getErrorMessage } from "@/lib/helpers";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Shield, CheckCircle, XCircle, AlertCircle } from "lucide-react";
+import { Loader2, Shield, CheckCircle, XCircle, AlertCircle, Wallet } from "lucide-react";
 import { Header } from "@/components/header";
 
 interface RoleStatus {
@@ -29,6 +29,7 @@ export default function RoleManagementPage() {
   const [loading, setLoading] = useState(false);
   const [checkingRoles, setCheckingRoles] = useState(false);
   const [grantingRole, setGrantingRole] = useState<string | null>(null);
+  const [isFundLoading, setIsFundLoading] = useState(false);
 
   useEffect(() => {
     if (account) {
@@ -289,6 +290,74 @@ export default function RoleManagementPage() {
     }
   };
 
+  const handleFundContract = async () => {
+    if (!account?.address) {
+      toast({
+        title: "Wallet Not Connected",
+        description: "Please connect your wallet first",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    setIsFundLoading(true);
+    try {
+      // Step 1: Mint tokens to yourself
+      toast({
+        title: "Step 1/3: Minting Tokens",
+        description: "Minting 1000 RewardTokens to your wallet...",
+      });
+
+      const mintTx = await prepareContractCall({
+        contract: rewardTokenContract,
+        method: "function mint(address to, uint256 amount)",
+        params: [account.address, BigInt("1000000000000000000000")], // 1000 tokens
+      });
+      await sendTransaction(mintTx);
+
+      // Step 2: Approve SupplyChainManager
+      toast({
+        title: "Step 2/3: Approving Contract",
+        description: "Approving SupplyChainManager to use tokens...",
+      });
+
+      const approveTx = await prepareContractCall({
+        contract: rewardTokenContract,
+        method: "function approve(address spender, uint256 amount)",
+        params: [supplyChainManagerContractAddress, BigInt("1000000000000000000000")],
+      });
+      await sendTransaction(approveTx);
+
+      // Step 3: Fund the contract
+      toast({
+        title: "Step 3/3: Funding Contract",
+        description: "Transferring tokens to SupplyChainManager...",
+      });
+
+      const fundTx = await prepareContractCall({
+        contract: supplyChainContract,
+        method: "function fundRewards(uint256 amount)",
+        params: [BigInt("1000000000000000000000")],
+      });
+      await sendTransaction(fundTx);
+
+      toast({
+        title: "Contract Funded Successfully! 🎉",
+        description: "The SupplyChainManager now has 1000 RewardTokens available for distribution.",
+        duration: 5000,
+      });
+    } catch (error: any) {
+      console.error(error);
+      toast({
+        title: "Funding Failed",
+        description: getErrorMessage(error),
+        variant: "destructive",
+      });
+    } finally {
+      setIsFundLoading(false);
+    }
+  };
+
   if (!account) {
     return (
       <div className="min-h-screen bg-gray-50">
@@ -346,6 +415,57 @@ export default function RoleManagementPage() {
             </div>
           </Card>
         )}
+
+        {/* Contract Management */}
+        <Card className="p-6 mb-6 bg-gradient-to-r from-purple-50 to-pink-50 border-2 border-purple-200">
+          <div className="mb-4">
+            <h3 className="font-semibold flex items-center gap-2">
+              <Wallet className="h-5 w-5 text-purple-600" />
+              💰 Contract Funding Management
+            </h3>
+            <p className="text-sm text-gray-600 mt-2">
+              Fund the SupplyChainManager contract with RewardTokens to enable reward distribution
+            </p>
+          </div>
+
+          <div className="bg-white/50 rounded-lg p-4 mb-4">
+            <h4 className="font-medium text-sm mb-2 text-purple-900">What does this do?</h4>
+            <ul className="text-sm text-gray-700 space-y-1.5">
+              <li className="flex items-start gap-2">
+                <span className="text-purple-600 font-bold">→</span>
+                <span>Mints 1000 RewardTokens to your wallet</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-purple-600 font-bold">→</span>
+                <span>Approves SupplyChainManager to use these tokens</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-purple-600 font-bold">→</span>
+                <span>Transfers tokens to the contract for reward distribution</span>
+              </li>
+            </ul>
+          </div>
+
+          <Button
+            onClick={handleFundContract}
+            disabled={isFundLoading}
+            className="w-full h-12 text-lg bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600 text-white border-0"
+            size="lg"
+          >
+            {isFundLoading ? (
+              <>
+                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                Processing (3 transactions)...
+              </>
+            ) : (
+              "💰 Fund Contract with 1000 Tokens"
+            )}
+          </Button>
+
+          <p className="text-xs text-gray-500 mt-3 text-center">
+            ⚠️ This will require 3 transaction signatures: Mint → Approve → Fund
+          </p>
+        </Card>
 
         <div className="mb-6">
           <h1 className="text-3xl font-bold flex items-center gap-2">

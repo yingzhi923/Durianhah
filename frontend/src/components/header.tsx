@@ -127,28 +127,28 @@ export function Header() {
               showAnimation ? "border-green-400 text-green-600" : ""
             )}
           >
-            {isClaimLoading ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Claiming...
-              </>
-            ) : (
-              <>
-                <Gift
-                  className={cn(
-                    "mr-2 h-4 w-4 transition-transform duration-300",
-                    showAnimation ? "scale-110" : ""
-                  )}
-                />
-                Claim Reward Tokens
-              </>
-            )}
+              {isClaimLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Claiming...
+                </>
+              ) : (
+                <>
+                  <Gift
+                    className={cn(
+                      "mr-2 h-4 w-4 transition-transform duration-300",
+                      showAnimation ? "scale-110" : ""
+                    )}
+                  />
+                  Claim Reward Tokens
+                </>
+              )}
 
-            {/* 涟漪动画 */}
-            {showAnimation && (
-              <span className="absolute top-0 left-0 right-0 bottom-0 bg-green-300/40 animate-ripple rounded-md"></span>
-            )}
-          </Button>
+              {/* 涟漪动画 */}
+              {showAnimation && (
+                <span className="absolute top-0 left-0 right-0 bottom-0 bg-green-300/40 animate-ripple rounded-md"></span>
+              )}
+            </Button>
         )}
         <ConnectButton
           client={client}
