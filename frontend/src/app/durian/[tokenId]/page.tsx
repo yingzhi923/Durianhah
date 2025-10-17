@@ -119,17 +119,26 @@ export default function DurianDetailPage() {
 
           if (status[0]) {
             // Phase is submitted, safe to read metadata
-            const metaResult = await readContract({
+            // Read submitMeta (submitter, submittedAt, reserved)
+            const submitMetaResult = await readContract({
               contract: supplyChainContract,
-              method: "function submitMeta(uint256 tokenId, uint8 phase) view returns (address submitter, uint64 submittedAt, bytes32 dataHash, uint256 packedData, string cid)",
+              method: "function submitMeta(uint256 tokenId, uint8 phase) view returns (address submitter, uint64 submittedAt, uint32 reserved)",
               params: [BigInt(tokenId), phase],
             });
+
+            // Read phaseData (dataHash, packedData)
+            const phaseDataResult = await readContract({
+              contract: supplyChainContract,
+              method: "function phaseData(uint256 tokenId, uint8 phase) view returns (bytes32 dataHash, uint256 packedData)",
+              params: [BigInt(tokenId), phase],
+            });
+
             meta = {
-              submitter: metaResult[0],
-              submittedAt: metaResult[1],
-              dataHash: metaResult[2],
-              packedData: metaResult[3],
-              cid: metaResult[4],
+              submitter: submitMetaResult[0],
+              submittedAt: submitMetaResult[1],
+              dataHash: phaseDataResult[0],
+              packedData: phaseDataResult[1],
+              cid: "", // CID is not stored on-chain, only in events
             };
           }
 
