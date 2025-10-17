@@ -25,37 +25,49 @@ import {
 } from "lucide-react";
 
 /* =========================
-   事件签名（兜底统计使用）
+   事件签名（实际合约定义）
    ========================= */
 const PhaseSubmitted = prepareEvent({
   signature:
-    "event PhaseSubmitted(uint256 indexed tokenId, uint8 indexed phase, address indexed user, uint256 timestamp)",
+    "event PhaseSubmitted(uint256 indexed tokenId, uint8 indexed phase, bytes32 dataHash, uint256 packedData, string cid, address indexed submitter, uint64 submittedAt)",
 });
 const PhaseVerified = prepareEvent({
   signature:
-    "event PhaseVerified(uint256 indexed tokenId, uint8 indexed phase, address indexed verifier, bool passed, uint256 timestamp)",
+    "event PhaseVerified(uint256 indexed tokenId, uint8 indexed phase, address indexed verifier, uint64 verifiedAt)",
 });
 
 /* =========================
-   工具：获取审核角色 bytes32
-   优先 VERIFIER_ROLE / INSPECTOR_ROLE；无则回退 FARMER_ROLE（demo 友好）
+   工具：获取角色权限检查
+   合约中验证由各阶段角色执行：
+   - Phase 2 由 PACKER_ROLE 验证
+   - Phase 3 由 LOGISTICS_ROLE 验证
+   - Phase 4 由 RETAIL_ROLE 验证
+   为了简化，这里检查用户是否有任一执行角色
    ========================= */
-async function getVerifierRole() {
-  const tryRead = async (sig: string) =>
-    (await readContract({
-      contract: supplyChainContract,
-      method: sig as any,
-      params: [],
-    })) as `0x${string}`;
-
-  try {
-    return await tryRead("function VERIFIER_ROLE() view returns (bytes32)");
-  } catch {}
-  try {
-    return await tryRead("function INSPECTOR_ROLE() view returns (bytes32)");
-  } catch {}
-  // demo fallback
-  return await tryRead("function FARMER_ROLE() view returns (bytes32)");
+async function checkAnyVerifierRole(address: string): Promise<boolean> {
+  const roles = ["PACKER_ROLE", "LOGISTICS_ROLE", "RETAIL_ROLE"];
+  
+  for (const roleName of roles) {
+    try {
+      const roleBytes = await readContract({
+        contract: supplyChainContract,
+        method: `function ${roleName}() view returns (bytes32)` as any,
+        params: [],
+      }) as `0x${string}`;
+      
+      const hasRole = await readContract({
+        contract: supplyChainContract,
+        method: "function hasRole(bytes32 role, address account) view returns (bool)",
+        params: [roleBytes, address],
+      });
+      
+      if (hasRole) return true;
+    } catch {
+      continue;
+    }
+  }
+  
+  return false;
 }
 
 /* =========================
@@ -98,20 +110,15 @@ export default function VerificationPage() {
         return;
       }
       try {
-        const role = await getVerifierRole();
-        const has = await readContract({
-          contract: supplyChainContract,
-          method: "function hasRole(bytes32 role, address account) view returns (bool)",
-          params: [role, account.address],
-        });
-        setVerifiedRole(Boolean(has));
+        const hasRole = await checkAnyVerifierRole(account.address);
+        setVerifiedRole(hasRole);
       } catch {
         setVerifiedRole(false);
       }
     })();
   }, [account?.address]);
 
-  /* -------- Step 1：点击“Start Verification”进行显式校验 -------- */
+    /* -------- Step 1：点击"Start Verification"进行显式校验 -------- */
   const handleVerifyPermission = async () => {
     if (!account) {
       toast({
@@ -123,17 +130,12 @@ export default function VerificationPage() {
     }
     setChecking(true);
     try {
-      const role = await getVerifierRole();
-      const has = await readContract({
-        contract: supplyChainContract,
-        method: "function hasRole(bytes32 role, address account) view returns (bool)",
-        params: [role, account.address],
-      });
-      if (!has) {
+      const hasRole = await checkAnyVerifierRole(account.address);
+      if (!hasRole) {
         setVerifiedRole(false);
         toast({
           title: "Permission Required",
-          description: "You don't have the verifier role. Please go to Roles page to grant it.",
+          description: "You need PACKER_ROLE, LOGISTICS_ROLE, or RETAIL_ROLE. Please go to Roles page to grant it.",
           variant: "destructive",
         });
         return;
@@ -167,19 +169,19 @@ export default function VerificationPage() {
         getContractEvents({
           contract: supplyChainContract,
           events: [PhaseSubmitted],
-          fromBlock: 0n,
+          fromBlock: BigInt(0),
         }),
         getContractEvents({
           contract: supplyChainContract,
           events: [PhaseVerified],
-          fromBlock: 0n,
+          fromBlock: BigInt(0),
         }),
       ]);
 
       const verifiedKey = new Set(
         vers.map((v) => {
           const a = v.args as any;
-          return `${a.tokenId}-${a.phase}-${a.timestamp}`;
+          return `${a.tokenId}-${a.phase}`;
         })
       );
 
@@ -189,11 +191,11 @@ export default function VerificationPage() {
           return {
             tokenId: String(a.tokenId),
             phase: Number(a.phase),
-            submitter: String(a.user),
-            ts: Number(a.timestamp || 0),
+            submitter: String(a.submitter),
+            ts: Number(a.submittedAt || 0),
           };
         })
-        .filter((r) => !verifiedKey.has(`${r.tokenId}-${r.phase}-${r.ts}`))
+        .filter((r) => !verifiedKey.has(`${r.tokenId}-${r.phase}`))
         .sort((a, b) => b.ts - a.ts)
         .slice(0, 50); // 只取最近 50 条，够用且快
 
@@ -211,8 +213,8 @@ export default function VerificationPage() {
   };
 
   /* -------- 提交审核交易 --------
-     优先尝试：verifyPhase(uint256 tokenId, uint8 phase, bool passed, string note)
-     失败再回退：verifyPhase(uint256 tokenId, uint8 phase, bool passed)
+     合约方法签名：verifyPhase(uint256 tokenId, uint8 phase)
+     注意：合约中验证总是"通过"，没有 fail 选项
   --------------------------------------------------- */
   const handleSubmitVerify = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -229,43 +231,40 @@ export default function VerificationPage() {
       return;
     }
 
-    const passed = decision === "pass";
+    // 如果用户选择 reject，提示无法在链上记录
+    if (decision === "fail") {
+      toast({
+        title: "Cannot Reject On-Chain",
+        description: "The current contract only supports approval. To reject, please don't verify this phase.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
-      // 尝试带 note 版本
-      let tx = prepareContractCall({
+      const tx = prepareContractCall({
         contract: supplyChainContract,
-        method:
-          "function verifyPhase(uint256 tokenId, uint8 phase, bool passed, string calldata note)",
-        params: [BigInt(selected.tokenId), selected.phase, passed, note || ""],
+        method: "function verifyPhase(uint256 tokenId, uint8 phase)",
+        params: [BigInt(selected.tokenId), selected.phase],
       });
 
       await sendTx(tx);
-      toast({ title: "Verification Submitted", description: `#${selected.tokenId} P${selected.phase} · ${passed ? "Pass" : "Fail"}` });
+      toast({ 
+        title: "Phase Verified! ✅", 
+        description: `Token #${selected.tokenId} Phase ${selected.phase} has been verified successfully.` 
+      });
 
       // 刷新列表 & 重置表单
       setSelected(null);
       setNote("");
+      setDecision("pass");
       await refreshPending();
-    } catch (errWithNote: any) {
-      try {
-        // 回退到不带 note 的版本
-        const tx2 = prepareContractCall({
-          contract: supplyChainContract,
-          method: "function verifyPhase(uint256 tokenId, uint8 phase, bool passed)",
-          params: [BigInt(selected.tokenId), selected.phase, passed],
-        });
-        await sendTx(tx2);
-        toast({ title: "Verification Submitted", description: `#${selected.tokenId} P${selected.phase} · ${passed ? "Pass" : "Fail"}` });
-        setSelected(null);
-        setNote("");
-        await refreshPending();
-      } catch (err: any) {
-        toast({
-          title: "Verification Failed",
-          description: err?.message || "Transaction reverted.",
-          variant: "destructive",
-        });
-      }
+    } catch (err: any) {
+      toast({
+        title: "Verification Failed",
+        description: err?.message || "Transaction reverted. Ensure you have the correct role for this phase.",
+        variant: "destructive",
+      });
     }
   };
 
@@ -312,10 +311,15 @@ export default function VerificationPage() {
               Permission Required
             </h4>
             <p className="text-sm text-orange-800 mb-2">
-              You need <span className="font-bold">VERIFIER_ROLE</span> (or configured role) to verify data.
+              You need one of the following roles to verify phases:
             </p>
+            <ul className="text-sm text-orange-800 mb-2 ml-4 list-disc">
+              <li><span className="font-bold">PACKER_ROLE</span> - to verify Phase 2 (Harvest)</li>
+              <li><span className="font-bold">LOGISTICS_ROLE</span> - to verify Phase 3 (Packing)</li>
+              <li><span className="font-bold">RETAIL_ROLE</span> - to verify Phase 4 (Logistics)</li>
+            </ul>
             <p className="text-xs text-orange-700">
-              If verification fails, please go to the <Link href="/roles" className="underline font-medium">Roles page</Link> to grant yourself the role.
+              If you don't have any role, go to the <Link href="/roles" className="underline font-medium">Roles page</Link> to grant yourself one.
             </p>
           </div>
 
@@ -404,29 +408,16 @@ export default function VerificationPage() {
                       <td className="px-4 py-3 text-sm border-r">{short(r.submitter)}</td>
                       <td className="px-4 py-3 text-sm border-r">{new Date(r.ts * 1000).toLocaleString()}</td>
                       <td className="px-4 py-3 text-sm">
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            onClick={() => {
-                              setSelected({ tokenId: r.tokenId, phase: r.phase });
-                              setDecision("pass");
-                              setNote("");
-                            }}
-                          >
-                            <CheckCircle className="h-4 w-4 mr-1" /> Approve
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="destructive"
-                            onClick={() => {
-                              setSelected({ tokenId: r.tokenId, phase: r.phase });
-                              setDecision("fail");
-                              setNote("");
-                            }}
-                          >
-                            <XCircle className="h-4 w-4 mr-1" /> Reject
-                          </Button>
-                        </div>
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                          onClick={() => {
+                            setSelected({ tokenId: r.tokenId, phase: r.phase });
+                            setNote("");
+                          }}
+                        >
+                          <CheckCircle className="h-4 w-4 mr-1" /> Verify
+                        </Button>
                       </td>
                     </tr>
                   ))}
@@ -450,55 +441,57 @@ export default function VerificationPage() {
             </div>
 
             <form onSubmit={handleSubmitVerify} className="space-y-6">
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                <p className="text-sm text-blue-900">
+                  <strong>Note:</strong> This verification page allows you to approve phases. Once verified, the submitter can claim their reward.
+                </p>
+                <p className="text-xs text-blue-800 mt-1">
+                  The contract only supports approval verification. If you find issues, simply don't verify the phase.
+                </p>
+              </div>
+
               <div className="grid md:grid-cols-2 gap-6">
                 <div>
-                  <label className="block text-sm font-medium mb-2">Decision *</label>
-                  <select
-                    className="w-full border rounded-md h-10 px-3 text-sm"
-                    value={decision}
-                    onChange={(e) => setDecision(e.target.value as "pass" | "fail")}
-                  >
-                    <option value="pass">Approve (Pass)</option>
-                    <option value="fail">Reject (Fail)</option>
-                  </select>
+                  <label className="block text-sm font-medium mb-2">Action</label>
+                  <div className="h-10 px-4 py-2 bg-green-50 border border-green-200 rounded-md flex items-center">
+                    <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
+                    <span className="text-sm font-medium text-green-900">Approve & Verify</span>
+                  </div>
                 </div>
                 <div>
                   <label className="block text-sm font-medium mb-2">
                     Verifier Address
                   </label>
-                  <Input disabled value={account?.address || ""} />
+                  <Input disabled value={account?.address || ""} className="font-mono text-sm" />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2">Notes (optional)</label>
+                <label className="block text-sm font-medium mb-2">Notes (optional, off-chain only)</label>
                 <Textarea
                   rows={3}
-                  placeholder={decision === "pass" ? "e.g., Values consistent with telemetry; all checks passed." : "e.g., Inconsistent brix vs. packing; missing doc."}
+                  placeholder="e.g., Verified data consistency, all quality checks passed, temperature logs reviewed."
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  Notes are for your reference only and won't be stored on-chain.
+                </p>
               </div>
 
               <div className="flex gap-3">
-                <Button type="submit" className="h-11">
-                  {decision === "pass" ? (
-                    <>
-                      <CheckCircle className="h-5 w-5 mr-2" />
-                      Confirm Approve
-                    </>
-                  ) : (
-                    <>
-                      <XCircle className="h-5 w-5 mr-2" />
-                      Confirm Reject
-                    </>
-                  )}
+                <Button type="submit" className="h-11 bg-green-600 hover:bg-green-700">
+                  <CheckCircle className="h-5 w-5 mr-2" />
+                  Verify & Approve Phase
                 </Button>
                 <Button
                   type="button"
                   variant="outline"
                   className="h-11"
-                  onClick={() => setSelected(null)}
+                  onClick={() => {
+                    setSelected(null);
+                    setNote("");
+                  }}
                 >
                   Cancel
                 </Button>
