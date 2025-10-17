@@ -94,6 +94,13 @@ contract SupplyChainManager is AccessControl, Pausable, ReentrancyGuard {
         _setRoleAdmin(PACKER_ROLE, ADMIN_ROLE);
         _setRoleAdmin(LOGISTICS_ROLE, ADMIN_ROLE);
         _setRoleAdmin(RETAIL_ROLE, ADMIN_ROLE);
+
+        // 设置每个阶段的奖励金额为 10 TOKEN (10 * 10^18 wei)
+        rewardForPhase[1] = 10 * 10**18;  // Phase 1: Farming - 10 TOKEN
+        rewardForPhase[2] = 10 * 10**18;  // Phase 2: Harvest - 10 TOKEN
+        rewardForPhase[3] = 10 * 10**18;  // Phase 3: Packing - 10 TOKEN
+        rewardForPhase[4] = 10 * 10**18;  // Phase 4: Logistics - 10 TOKEN
+        rewardForPhase[5] = 10 * 10**18;  // Phase 5: Retail - 10 TOKEN
     }
 
     // --------- 管理员函数 ---------
