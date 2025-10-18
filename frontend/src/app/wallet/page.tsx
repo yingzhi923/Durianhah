@@ -2,14 +2,10 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useActiveAccount } from "thirdweb/react";
-import { readContract, getContractEvents, prepareEvent } from "thirdweb";
 
 import { Header } from "@/components/header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { useToast } from "@/hooks/use-toast";
-import { supplyChainContract, rewardTokenContract, nftContract } from "@/constants/contract";
 
 import {
   Wallet,
@@ -22,19 +18,6 @@ import {
   CheckCircle,
   Package,
 } from "lucide-react";
-
-/* =========================
-   事件签名
-   ========================= */
-const RewardClaimed = prepareEvent({
-  signature:
-    "event RewardClaimed(uint256 indexed tokenId, uint8 indexed phase, address indexed claimant, uint256 amount)",
-});
-
-const PhaseSubmitted = prepareEvent({
-  signature:
-    "event PhaseSubmitted(uint256 indexed tokenId, uint8 indexed phase, bytes32 dataHash, uint256 packedData, string cid, address indexed submitter, uint64 submittedAt)",
-});
 
 /* =========================
    类型定义
@@ -58,13 +41,131 @@ type WalletStats = {
   nftCount: number;
 };
 
+/* =========================
+   DEMO 数据生成器
+   ========================= */
+const generateDemoData = () => {
+  const now = Date.now() / 1000;
+  
+  // 模拟钱包统计数据
+  const demoStats: WalletStats = {
+    tokenBalance: String(250.50 * 1e18), // 250.50 TOKEN
+    totalClaimed: String(180.25 * 1e18), // 180.25 TOKEN
+    claimCount: 12,
+    nftCount: 5,
+  };
+
+  // 模拟领取历史记录
+  const demoClaims: ClaimRecord[] = [
+    {
+      tokenId: "1",
+      phase: 5,
+      amount: String(50 * 1e18),
+      timestamp: now - 3600 * 2, // 2小时前
+    },
+    {
+      tokenId: "2",
+      phase: 4,
+      amount: String(40 * 1e18),
+      timestamp: now - 3600 * 8, // 8小时前
+    },
+    {
+      tokenId: "1",
+      phase: 4,
+      amount: String(40 * 1e18),
+      timestamp: now - 3600 * 24, // 1天前
+    },
+    {
+      tokenId: "3",
+      phase: 3,
+      amount: String(30 * 1e18),
+      timestamp: now - 3600 * 48, // 2天前
+    },
+    {
+      tokenId: "2",
+      phase: 3,
+      amount: String(30 * 1e18),
+      timestamp: now - 3600 * 72, // 3天前
+    },
+    {
+      tokenId: "4",
+      phase: 2,
+      amount: String(20 * 1e18),
+      timestamp: now - 3600 * 96, // 4天前
+    },
+    {
+      tokenId: "1",
+      phase: 3,
+      amount: String(30 * 1e18),
+      timestamp: now - 3600 * 120, // 5天前
+    },
+    {
+      tokenId: "5",
+      phase: 1,
+      amount: String(10 * 1e18),
+      timestamp: now - 3600 * 144, // 6天前
+    },
+    {
+      tokenId: "2",
+      phase: 2,
+      amount: String(20 * 1e18),
+      timestamp: now - 3600 * 168, // 7天前
+    },
+    {
+      tokenId: "1",
+      phase: 2,
+      amount: String(20 * 1e18),
+      timestamp: now - 3600 * 192, // 8天前
+    },
+    {
+      tokenId: "3",
+      phase: 1,
+      amount: String(10 * 1e18),
+      timestamp: now - 3600 * 216, // 9天前
+    },
+    {
+      tokenId: "1",
+      phase: 1,
+      amount: String(10 * 1e18),
+      timestamp: now - 3600 * 240, // 10天前
+    },
+  ];
+
+  // 模拟 NFT 参与记录
+  const demoNFTs: NFTParticipation[] = [
+    {
+      tokenId: "1",
+      submittedPhases: [1, 2, 3, 4, 5],
+    },
+    {
+      tokenId: "2",
+      submittedPhases: [1, 2, 3, 4],
+    },
+    {
+      tokenId: "3",
+      submittedPhases: [1, 2, 3],
+    },
+    {
+      tokenId: "4",
+      submittedPhases: [1, 2],
+    },
+    {
+      tokenId: "5",
+      submittedPhases: [1],
+    },
+  ];
+
+  return {
+    stats: demoStats,
+    claims: demoClaims,
+    nfts: demoNFTs,
+  };
+};
+
 /* ===========================================================
-   页面 - 钱包查看
+   页面 - 钱包查看 (DEMO 模式)
    =========================================================== */
 export default function WalletPage() {
-  const account = useActiveAccount();
-  const { toast } = useToast();
-
   const [loading, setLoading] = useState(false);
   const [stats, setStats] = useState<WalletStats>({
     tokenBalance: "0",
@@ -75,98 +176,23 @@ export default function WalletPage() {
   const [claimHistory, setClaimHistory] = useState<ClaimRecord[]>([]);
   const [nftParticipations, setNftParticipations] = useState<NFTParticipation[]>([]);
 
-  /* -------- 自动加载钱包数据 -------- */
+  /* -------- 自动加载 Demo 数据 -------- */
   useEffect(() => {
-    if (account?.address) {
-      loadWalletData();
-    }
-  }, [account?.address]);
+    loadDemoData();
+  }, []);
 
-  /* -------- 加载钱包数据 -------- */
-  const loadWalletData = async () => {
-    if (!account?.address) return;
-    
+  /* -------- 加载 Demo 数据 -------- */
+  const loadDemoData = () => {
     setLoading(true);
-    try {
-      // 1. 获取 RewardToken 余额
-      const balance = await readContract({
-        contract: rewardTokenContract,
-        method: "function balanceOf(address account) view returns (uint256)",
-        params: [account.address],
-      });
-
-      // 2. 获取领取记录（从事件）
-      const claimEvents = await getContractEvents({
-        contract: supplyChainContract,
-        events: [RewardClaimed],
-        fromBlock: BigInt(0),
-      });
-
-      const userClaims = claimEvents
-        .filter((e: any) => e.args.claimant.toLowerCase() === account.address.toLowerCase())
-        .map((e: any) => ({
-          tokenId: String(e.args.tokenId),
-          phase: Number(e.args.phase),
-          amount: String(e.args.amount),
-          timestamp: e.blockNumber ? Number(e.blockNumber) : Date.now() / 1000,
-        }))
-        .sort((a, b) => b.timestamp - a.timestamp);
-
-      // 3. 计算总领取金额
-      const totalClaimed = userClaims.reduce(
-        (sum, claim) => sum + BigInt(claim.amount),
-        BigInt(0)
-      );
-
-      // 4. 获取用户参与的 NFT（通过 PhaseSubmitted 事件）
-      const submitEvents = await getContractEvents({
-        contract: supplyChainContract,
-        events: [PhaseSubmitted],
-        fromBlock: BigInt(0),
-      });
-
-      const userSubmissions = submitEvents
-        .filter((e: any) => e.args.submitter.toLowerCase() === account.address.toLowerCase())
-        .map((e: any) => ({
-          tokenId: String(e.args.tokenId),
-          phase: Number(e.args.phase),
-        }));
-
-      // 按 tokenId 分组
-      const nftMap = new Map<string, number[]>();
-      userSubmissions.forEach((sub) => {
-        const phases = nftMap.get(sub.tokenId) || [];
-        if (!phases.includes(sub.phase)) {
-          phases.push(sub.phase);
-        }
-        nftMap.set(sub.tokenId, phases.sort((a, b) => a - b));
-      });
-
-      const nftList: NFTParticipation[] = Array.from(nftMap.entries()).map(
-        ([tokenId, phases]) => ({
-          tokenId,
-          submittedPhases: phases,
-        })
-      );
-
-      setStats({
-        tokenBalance: String(balance),
-        totalClaimed: String(totalClaimed),
-        claimCount: userClaims.length,
-        nftCount: nftList.length,
-      });
-      setClaimHistory(userClaims);
-      setNftParticipations(nftList);
-    } catch (e: any) {
-      console.error("Failed to load wallet data:", e);
-      toast({
-        title: "Load Failed",
-        description: e?.message || "Cannot fetch wallet data",
-        variant: "destructive",
-      });
-    } finally {
+    
+    // 模拟加载延迟
+    setTimeout(() => {
+      const demoData = generateDemoData();
+      setStats(demoData.stats);
+      setClaimHistory(demoData.claims);
+      setNftParticipations(demoData.nfts);
       setLoading(false);
-    }
+    }, 500);
   };
 
   return (
@@ -181,32 +207,27 @@ export default function WalletPage() {
       <div className="max-w-7xl mx-auto p-6 space-y-8">
         <div className="flex items-center justify-between">
           <Link href="/" className="text-blue-600 hover:underline">← Back to Home</Link>
-          <Button onClick={loadWalletData} disabled={loading || !account} variant="outline">
-            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </Button>
+          <div className="flex items-center gap-3">
+            <span className="px-3 py-1 bg-purple-100 text-purple-700 rounded-full text-sm font-medium flex items-center gap-2">
+              🎭 DEMO MODE
+            </span>
+            <Button onClick={loadDemoData} disabled={loading} variant="outline">
+              <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Refresh
+            </Button>
+          </div>
         </div>
 
-        {!account ? (
-          <Card className="p-12 text-center">
-            <Wallet className="mx-auto h-16 w-16 text-gray-400 mb-4" />
-            <h2 className="text-2xl font-bold mb-2">Connect Your Wallet</h2>
-            <p className="text-gray-600">
-              Please connect your wallet to view your balance and transaction history
-            </p>
-          </Card>
-        ) : (
-          <>
-            {/* 页面标题 */}
-            <div className="mb-6">
-              <h1 className="text-3xl font-bold flex items-center gap-3">
-                <Wallet className="h-8 w-8 text-blue-600" />
-                My Wallet
-              </h1>
-              <p className="text-gray-600 mt-2">
-                View your RewardToken balance, claim history, and NFT participations
-              </p>
-            </div>
+        {/* 页面标题 */}
+        <div className="mb-6">
+          <h1 className="text-3xl font-bold flex items-center gap-3">
+            <Wallet className="h-8 w-8 text-blue-600" />
+            My Wallet
+          </h1>
+          <p className="text-gray-600 mt-2">
+            View your RewardToken balance, claim history, and NFT participations (Demo Data)
+          </p>
+        </div>
 
             {/* 统计卡片 */}
             <div className="grid md:grid-cols-4 gap-6">
@@ -350,8 +371,6 @@ export default function WalletPage() {
                 </div>
               )}
             </Card>
-          </>
-        )}
       </div>
     </div>
   );
