@@ -9,12 +9,13 @@ import Image from "next/image";
 import { 
   Shield, 
   Upload, 
-  CheckCircle, 
+  Wallet, 
   Search,
   BarChart3,
   Package,
   Truck,
-  Store
+  Store,
+  CheckCircle
 } from "lucide-react";
 
 export default function Home() {
@@ -79,10 +80,10 @@ export default function Home() {
           </Link>
 
           <Link href="/verify">
-            <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-orange-500">
-              <CheckCircle className="h-12 w-12 text-orange-600 mb-4" />
-              <h3 className="text-xl font-bold mb-2">Data Verification</h3>
-              <p className="text-gray-600">Verify pending supply chain data</p>
+            <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-red-500">
+              <Wallet className="h-12 w-12 text-red-600 mb-4" />
+              <h3 className="text-xl font-bold mb-2">My Wallet</h3>
+              <p className="text-gray-600">View your balance and transaction history</p>
             </Card>
           </Link>
         </div>

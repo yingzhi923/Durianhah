@@ -1,286 +1,176 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useActiveAccount, useSendAndConfirmTransaction } from "thirdweb/react";
-import { readContract, prepareContractCall, getContractEvents, prepareEvent } from "thirdweb";
+import { useActiveAccount } from "thirdweb/react";
+import { readContract, getContractEvents, prepareEvent } from "thirdweb";
 
 import { Header } from "@/components/header";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
-import { supplyChainContract } from "@/constants/contract";
+import { supplyChainContract, rewardTokenContract, nftContract } from "@/constants/contract";
 
 import {
-  Loader2,
-  Shield,
-  ShieldCheck,
-  ClipboardList,
-  CheckCircle,
-  XCircle,
+  Wallet,
+  Coins,
+  Gift,
+  TrendingUp,
   RefreshCw,
-  Search,
+  ExternalLink,
+  Clock,
+  CheckCircle,
+  Package,
 } from "lucide-react";
 
 /* =========================
-   事件签名（实际合约定义）
+   事件签名
    ========================= */
+const RewardClaimed = prepareEvent({
+  signature:
+    "event RewardClaimed(uint256 indexed tokenId, uint8 indexed phase, address indexed claimant, uint256 amount)",
+});
+
 const PhaseSubmitted = prepareEvent({
   signature:
     "event PhaseSubmitted(uint256 indexed tokenId, uint8 indexed phase, bytes32 dataHash, uint256 packedData, string cid, address indexed submitter, uint64 submittedAt)",
 });
-const PhaseVerified = prepareEvent({
-  signature:
-    "event PhaseVerified(uint256 indexed tokenId, uint8 indexed phase, address indexed verifier, uint64 verifiedAt)",
-});
 
 /* =========================
-   工具：获取角色权限检查
-   合约中验证由各阶段角色执行：
-   - Phase 2 由 PACKER_ROLE 验证
-   - Phase 3 由 LOGISTICS_ROLE 验证
-   - Phase 4 由 RETAIL_ROLE 验证
-   为了简化，这里检查用户是否有任一执行角色
+   类型定义
    ========================= */
-async function checkAnyVerifierRole(address: string): Promise<boolean> {
-  const roles = ["PACKER_ROLE", "LOGISTICS_ROLE", "RETAIL_ROLE"];
-  
-  for (const roleName of roles) {
-    try {
-      const roleBytes = await readContract({
-        contract: supplyChainContract,
-        method: `function ${roleName}() view returns (bytes32)` as any,
-        params: [],
-      }) as `0x${string}`;
-      
-      const hasRole = await readContract({
-        contract: supplyChainContract,
-        method: "function hasRole(bytes32 role, address account) view returns (bool)",
-        params: [roleBytes, address],
-      });
-      
-      if (hasRole) return true;
-    } catch {
-      continue;
-    }
-  }
-  
-  return false;
-}
-
-/* =========================
-   待审核行类型
-   ========================= */
-type PendingRow = {
+type ClaimRecord = {
   tokenId: string;
   phase: number;
-  submitter: string;
-  ts: number; // seconds
+  amount: string;
+  timestamp: number;
+};
+
+type NFTParticipation = {
+  tokenId: string;
+  submittedPhases: number[];
+};
+
+type WalletStats = {
+  tokenBalance: string;
+  totalClaimed: string;
+  claimCount: number;
+  nftCount: number;
 };
 
 /* ===========================================================
-   页面
+   页面 - 钱包查看
    =========================================================== */
-export default function VerificationPage() {
+export default function WalletPage() {
   const account = useActiveAccount();
-  const { mutateAsync: sendTx } = useSendAndConfirmTransaction();
   const { toast } = useToast();
 
-  // Step 1：权限校验
-  const [checking, setChecking] = useState(false);
-  const [verifiedRole, setVerifiedRole] = useState(false);
-
-  // Step 2：待审核数据
   const [loading, setLoading] = useState(false);
-  const [pending, setPending] = useState<PendingRow[]>([]);
-  const [search, setSearch] = useState("");
+  const [stats, setStats] = useState<WalletStats>({
+    tokenBalance: "0",
+    totalClaimed: "0",
+    claimCount: 0,
+    nftCount: 0,
+  });
+  const [claimHistory, setClaimHistory] = useState<ClaimRecord[]>([]);
+  const [nftParticipations, setNftParticipations] = useState<NFTParticipation[]>([]);
 
-  // Step 3：审核表单
-  const [selected, setSelected] = useState<{ tokenId: string; phase: number } | null>(null);
-  const [decision, setDecision] = useState<"pass" | "fail">("pass");
-  const [note, setNote] = useState("");
-
-  /* -------- 静默预检查角色（仅用于 UX 提示，不弹错） -------- */
+  /* -------- 自动加载钱包数据 -------- */
   useEffect(() => {
-    (async () => {
-      if (!account?.address) {
-        setVerifiedRole(false);
-        return;
-      }
-      try {
-        const hasRole = await checkAnyVerifierRole(account.address);
-        setVerifiedRole(hasRole);
-      } catch {
-        setVerifiedRole(false);
-      }
-    })();
+    if (account?.address) {
+      loadWalletData();
+    }
   }, [account?.address]);
 
-    /* -------- Step 1：点击"Start Verification"进行显式校验 -------- */
-  const handleVerifyPermission = async () => {
-    if (!account) {
-      toast({
-        title: "Wallet Not Connected",
-        description: "Please connect your wallet first",
-        variant: "destructive",
-      });
-      return;
-    }
-    setChecking(true);
-    try {
-      const hasRole = await checkAnyVerifierRole(account.address);
-      if (!hasRole) {
-        setVerifiedRole(false);
-        toast({
-          title: "Permission Required",
-          description: "You need PACKER_ROLE, LOGISTICS_ROLE, or RETAIL_ROLE. Please go to Roles page to grant it.",
-          variant: "destructive",
-        });
-        return;
-      }
-      setVerifiedRole(true);
-      toast({
-        title: "Permission Verified ✅",
-        description: "You can now review and verify submissions.",
-      });
-      // 校验后自动拉取一次列表
-      await refreshPending();
-    } catch (e: any) {
-      toast({
-        title: "Verification Failed",
-        description: e?.message || "Role check failed.",
-        variant: "destructive",
-      });
-    } finally {
-      setChecking(false);
-    }
-  };
-
-  /* -------- 拉取待审核列表：事件兜底 --------
-     思路：取所有 PhaseSubmitted，减去已有 PhaseVerified 的组合（tokenId+phase+timestamp）
-     再按时间倒序，截取最近若干条。
-  --------------------------------------------------- */
-  const refreshPending = async () => {
+  /* -------- 加载钱包数据 -------- */
+  const loadWalletData = async () => {
+    if (!account?.address) return;
+    
     setLoading(true);
     try {
-      const [subs, vers] = await Promise.all([
-        getContractEvents({
-          contract: supplyChainContract,
-          events: [PhaseSubmitted],
-          fromBlock: BigInt(0),
-        }),
-        getContractEvents({
-          contract: supplyChainContract,
-          events: [PhaseVerified],
-          fromBlock: BigInt(0),
-        }),
-      ]);
+      // 1. 获取 RewardToken 余额
+      const balance = await readContract({
+        contract: rewardTokenContract,
+        method: "function balanceOf(address account) view returns (uint256)",
+        params: [account.address],
+      });
 
-      const verifiedKey = new Set(
-        vers.map((v) => {
-          const a = v.args as any;
-          return `${a.tokenId}-${a.phase}`;
+      // 2. 获取领取记录（从事件）
+      const claimEvents = await getContractEvents({
+        contract: supplyChainContract,
+        events: [RewardClaimed],
+        fromBlock: BigInt(0),
+      });
+
+      const userClaims = claimEvents
+        .filter((e: any) => e.args.claimant.toLowerCase() === account.address.toLowerCase())
+        .map((e: any) => ({
+          tokenId: String(e.args.tokenId),
+          phase: Number(e.args.phase),
+          amount: String(e.args.amount),
+          timestamp: e.blockNumber ? Number(e.blockNumber) : Date.now() / 1000,
+        }))
+        .sort((a, b) => b.timestamp - a.timestamp);
+
+      // 3. 计算总领取金额
+      const totalClaimed = userClaims.reduce(
+        (sum, claim) => sum + BigInt(claim.amount),
+        BigInt(0)
+      );
+
+      // 4. 获取用户参与的 NFT（通过 PhaseSubmitted 事件）
+      const submitEvents = await getContractEvents({
+        contract: supplyChainContract,
+        events: [PhaseSubmitted],
+        fromBlock: BigInt(0),
+      });
+
+      const userSubmissions = submitEvents
+        .filter((e: any) => e.args.submitter.toLowerCase() === account.address.toLowerCase())
+        .map((e: any) => ({
+          tokenId: String(e.args.tokenId),
+          phase: Number(e.args.phase),
+        }));
+
+      // 按 tokenId 分组
+      const nftMap = new Map<string, number[]>();
+      userSubmissions.forEach((sub) => {
+        const phases = nftMap.get(sub.tokenId) || [];
+        if (!phases.includes(sub.phase)) {
+          phases.push(sub.phase);
+        }
+        nftMap.set(sub.tokenId, phases.sort((a, b) => a - b));
+      });
+
+      const nftList: NFTParticipation[] = Array.from(nftMap.entries()).map(
+        ([tokenId, phases]) => ({
+          tokenId,
+          submittedPhases: phases,
         })
       );
 
-      const rows: PendingRow[] = subs
-        .map((s) => {
-          const a = s.args as any;
-          return {
-            tokenId: String(a.tokenId),
-            phase: Number(a.phase),
-            submitter: String(a.submitter),
-            ts: Number(a.submittedAt || 0),
-          };
-        })
-        .filter((r) => !verifiedKey.has(`${r.tokenId}-${r.phase}`))
-        .sort((a, b) => b.ts - a.ts)
-        .slice(0, 50); // 只取最近 50 条，够用且快
-
-      setPending(rows);
+      setStats({
+        tokenBalance: String(balance),
+        totalClaimed: String(totalClaimed),
+        claimCount: userClaims.length,
+        nftCount: nftList.length,
+      });
+      setClaimHistory(userClaims);
+      setNftParticipations(nftList);
     } catch (e: any) {
+      console.error("Failed to load wallet data:", e);
       toast({
         title: "Load Failed",
-        description: e?.message || "Cannot fetch pending items from events.",
+        description: e?.message || "Cannot fetch wallet data",
         variant: "destructive",
       });
-      setPending([]);
     } finally {
       setLoading(false);
     }
   };
 
-  /* -------- 提交审核交易 --------
-     合约方法签名：verifyPhase(uint256 tokenId, uint8 phase)
-     注意：合约中验证总是"通过"，没有 fail 选项
-  --------------------------------------------------- */
-  const handleSubmitVerify = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!account) {
-      toast({ title: "Wallet Not Connected", description: "Please connect your wallet first", variant: "destructive" });
-      return;
-    }
-    if (!verifiedRole) {
-      toast({ title: "Not Verified", description: "Please verify permission first.", variant: "destructive" });
-      return;
-    }
-    if (!selected?.tokenId || !selected.phase) {
-      toast({ title: "No Item Selected", description: "Please pick an item to verify.", variant: "destructive" });
-      return;
-    }
-
-    // 如果用户选择 reject，提示无法在链上记录
-    if (decision === "fail") {
-      toast({
-        title: "Cannot Reject On-Chain",
-        description: "The current contract only supports approval. To reject, please don't verify this phase.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      const tx = prepareContractCall({
-        contract: supplyChainContract,
-        method: "function verifyPhase(uint256 tokenId, uint8 phase)",
-        params: [BigInt(selected.tokenId), selected.phase],
-      });
-
-      await sendTx(tx);
-      toast({ 
-        title: "Phase Verified! ✅", 
-        description: `Token #${selected.tokenId} Phase ${selected.phase} has been verified successfully.` 
-      });
-
-      // 刷新列表 & 重置表单
-      setSelected(null);
-      setNote("");
-      setDecision("pass");
-      await refreshPending();
-    } catch (err: any) {
-      toast({
-        title: "Verification Failed",
-        description: err?.message || "Transaction reverted. Ensure you have the correct role for this phase.",
-        variant: "destructive",
-      });
-    }
-  };
-
-  const filtered = useMemo(() => {
-    if (!search.trim()) return pending;
-    const s = search.trim().toLowerCase();
-    return pending.filter(
-      (r) =>
-        r.tokenId.toLowerCase().includes(s) ||
-        String(r.phase).includes(s) ||
-        r.submitter.toLowerCase().includes(s)
-    );
-  }, [pending, search]);
-
   return (
-    <div className="min-h-screen bg-gradient-to-b from-yellow-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
       {/* Header */}
       <div className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -289,229 +179,180 @@ export default function VerificationPage() {
       </div>
 
       <div className="max-w-7xl mx-auto p-6 space-y-8">
-        <div>
+        <div className="flex items-center justify-between">
           <Link href="/" className="text-blue-600 hover:underline">← Back to Home</Link>
+          <Button onClick={loadWalletData} disabled={loading || !account} variant="outline">
+            <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
         </div>
 
-        {/* Step 1：权限卡片 */}
-        <Card className="p-8">
-          <div className="mb-6">
-            <h1 className="text-3xl font-bold flex items-center gap-2">
-              <span className="text-4xl">✅</span>
-              Data Verification - Step 1
-            </h1>
-            <p className="text-gray-600 mt-2">
-              Verify supply chain submissions and record pass/fail results on-chain.
+        {!account ? (
+          <Card className="p-12 text-center">
+            <Wallet className="mx-auto h-16 w-16 text-gray-400 mb-4" />
+            <h2 className="text-2xl font-bold mb-2">Connect Your Wallet</h2>
+            <p className="text-gray-600">
+              Please connect your wallet to view your balance and transaction history
             </p>
-          </div>
-
-          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
-            <h4 className="font-medium text-orange-900 mb-2 flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Permission Required
-            </h4>
-            <p className="text-sm text-orange-800 mb-2">
-              You need one of the following roles to verify phases:
-            </p>
-            <ul className="text-sm text-orange-800 mb-2 ml-4 list-disc">
-              <li><span className="font-bold">PACKER_ROLE</span> - to verify Phase 2 (Harvest)</li>
-              <li><span className="font-bold">LOGISTICS_ROLE</span> - to verify Phase 3 (Packing)</li>
-              <li><span className="font-bold">RETAIL_ROLE</span> - to verify Phase 4 (Logistics)</li>
-            </ul>
-            <p className="text-xs text-orange-700">
-              If you don't have any role, go to the <Link href="/roles" className="underline font-medium">Roles page</Link> to grant yourself one.
-            </p>
-          </div>
-
-          <Button
-            onClick={handleVerifyPermission}
-            disabled={checking || !account}
-            className="w-full h-12 text-lg mt-6 bg-black text-white hover:bg-black/90"
-            size="lg"
-          >
-            {checking ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Verifying Permission...
-              </>
-            ) : (
-              <>
-                <ShieldCheck className="mr-2 h-5 w-5" />
-                Start Verification
-              </>
-            )}
-          </Button>
-
-          {!account && (
-            <p className="text-center text-red-500 text-sm mt-2">
-              Please connect your wallet to continue
-            </p>
-          )}
-
-          {verifiedRole && (
-            <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4">
-              <CheckCircle className="inline h-5 w-5 text-green-600 mr-2" />
-              <span className="font-medium text-green-900">Permission Verified!</span>
-              <p className="text-sm text-green-800 mt-2">
-                You can now review pending items below and submit verification results.
-              </p>
-            </div>
-          )}
-        </Card>
-
-        {/* Step 2：待审核列表（权限通过后显示） */}
-        {verifiedRole && (
-          <Card className="p-8 space-y-4">
-            <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <ClipboardList className="h-6 w-6 text-blue-600" />
-                Pending Submissions
-              </h2>
-              <div className="flex items-center gap-2">
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Search tokenId / phase / submitter"
-                    className="pl-9 w-64"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
-                </div>
-                <Button variant="outline" onClick={refreshPending} disabled={loading}>
-                  <RefreshCw className={`mr-2 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-                  Refresh
-                </Button>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="min-w-full divide-y divide-gray-200 border">
-                <thead className="bg-gray-50">
-                  <tr>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">Token ID</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">Phase</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">Submitter</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider border-r">Time</th>
-                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="bg-white divide-y divide-gray-200">
-                  {!filtered.length && (
-                    <tr>
-                      <td colSpan={5} className="px-4 py-6 text-center text-gray-500">No pending items</td>
-                    </tr>
-                  )}
-                  {filtered.map((r) => (
-                    <tr key={`${r.tokenId}-${r.phase}-${r.ts}`} className="hover:bg-gray-50">
-                      <td className="px-4 py-3 text-sm font-mono border-r">#{r.tokenId}</td>
-                      <td className="px-4 py-3 text-sm border-r">P{r.phase}</td>
-                      <td className="px-4 py-3 text-sm border-r">{short(r.submitter)}</td>
-                      <td className="px-4 py-3 text-sm border-r">{new Date(r.ts * 1000).toLocaleString()}</td>
-                      <td className="px-4 py-3 text-sm">
-                        <Button
-                          size="sm"
-                          className="bg-green-600 hover:bg-green-700"
-                          onClick={() => {
-                            setSelected({ tokenId: r.tokenId, phase: r.phase });
-                            setNote("");
-                          }}
-                        >
-                          <CheckCircle className="h-4 w-4 mr-1" /> Verify
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
           </Card>
-        )}
-
-        {/* Step 3：审核提交表单（选中一行后显示） */}
-        {verifiedRole && selected && (
-          <Card className="p-8">
+        ) : (
+          <>
+            {/* 页面标题 */}
             <div className="mb-6">
-              <h2 className="text-2xl font-bold flex items-center gap-2">
-                <span className="text-3xl">📝</span>
-                Submit Verification
-              </h2>
+              <h1 className="text-3xl font-bold flex items-center gap-3">
+                <Wallet className="h-8 w-8 text-blue-600" />
+                My Wallet
+              </h1>
               <p className="text-gray-600 mt-2">
-                Token <span className="font-mono">#{selected.tokenId}</span> · Phase <strong>P{selected.phase}</strong>
+                View your RewardToken balance, claim history, and NFT participations
               </p>
             </div>
 
-            <form onSubmit={handleSubmitVerify} className="space-y-6">
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
-                <p className="text-sm text-blue-900">
-                  <strong>Note:</strong> This verification page allows you to approve phases. Once verified, the submitter can claim their reward.
-                </p>
-                <p className="text-xs text-blue-800 mt-1">
-                  The contract only supports approval verification. If you find issues, simply don't verify the phase.
-                </p>
-              </div>
-
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <label className="block text-sm font-medium mb-2">Action</label>
-                  <div className="h-10 px-4 py-2 bg-green-50 border border-green-200 rounded-md flex items-center">
-                    <CheckCircle className="h-4 w-4 text-green-600 mr-2" />
-                    <span className="text-sm font-medium text-green-900">Approve & Verify</span>
-                  </div>
+            {/* 统计卡片 */}
+            <div className="grid md:grid-cols-4 gap-6">
+              <Card className="p-6 bg-gradient-to-br from-green-50 to-green-100 border-green-200">
+                <div className="flex items-center justify-between mb-3">
+                  <Coins className="h-8 w-8 text-green-600" />
+                  <TrendingUp className="h-5 w-5 text-green-500" />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2">
-                    Verifier Address
-                  </label>
-                  <Input disabled value={account?.address || ""} className="font-mono text-sm" />
+                <div className="text-sm text-green-700 mb-1">Token Balance</div>
+                <div className="text-2xl font-bold text-green-900">
+                  {(Number(stats.tokenBalance) / 1e18).toFixed(2)}
                 </div>
-              </div>
+                <div className="text-xs text-green-600 mt-1">TOKEN</div>
+              </Card>
 
-              <div>
-                <label className="block text-sm font-medium mb-2">Notes (optional, off-chain only)</label>
-                <Textarea
-                  rows={3}
-                  placeholder="e.g., Verified data consistency, all quality checks passed, temperature logs reviewed."
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  Notes are for your reference only and won't be stored on-chain.
-                </p>
-              </div>
+              <Card className="p-6 bg-gradient-to-br from-blue-50 to-blue-100 border-blue-200">
+                <div className="flex items-center justify-between mb-3">
+                  <Gift className="h-8 w-8 text-blue-600" />
+                </div>
+                <div className="text-sm text-blue-700 mb-1">Total Claimed</div>
+                <div className="text-2xl font-bold text-blue-900">
+                  {(Number(stats.totalClaimed) / 1e18).toFixed(2)}
+                </div>
+                <div className="text-xs text-blue-600 mt-1">TOKEN</div>
+              </Card>
 
-              <div className="flex gap-3">
-                <Button type="submit" className="h-11 bg-green-600 hover:bg-green-700">
-                  <CheckCircle className="h-5 w-5 mr-2" />
-                  Verify & Approve Phase
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="h-11"
-                  onClick={() => {
-                    setSelected(null);
-                    setNote("");
-                  }}
-                >
-                  Cancel
-                </Button>
-              </div>
+              <Card className="p-6 bg-gradient-to-br from-purple-50 to-purple-100 border-purple-200">
+                <div className="flex items-center justify-between mb-3">
+                  <CheckCircle className="h-8 w-8 text-purple-600" />
+                </div>
+                <div className="text-sm text-purple-700 mb-1">Claim Count</div>
+                <div className="text-2xl font-bold text-purple-900">{stats.claimCount}</div>
+                <div className="text-xs text-purple-600 mt-1">transactions</div>
+              </Card>
 
-              {!account && (
-                <p className="text-center text-red-500 text-sm mt-2">
-                  Please connect your wallet to submit
-                </p>
+              <Card className="p-6 bg-gradient-to-br from-orange-50 to-orange-100 border-orange-200">
+                <div className="flex items-center justify-between mb-3">
+                  <Package className="h-8 w-8 text-orange-600" />
+                </div>
+                <div className="text-sm text-orange-700 mb-1">NFT Participations</div>
+                <div className="text-2xl font-bold text-orange-900">{stats.nftCount}</div>
+                <div className="text-xs text-orange-600 mt-1">durians</div>
+              </Card>
+            </div>
+
+            {/* 领取历史记录 */}
+            <Card className="p-6">
+              <h2 className="text-xl font-bold flex items-center gap-2 mb-4">
+                <Clock className="h-6 w-6 text-blue-600" />
+                Claim History
+              </h2>
+              {claimHistory.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Gift className="mx-auto h-12 w-12 text-gray-300 mb-3" />
+                  <p>No claims yet</p>
+                  <p className="text-sm mt-1">Complete phases and claim rewards to see your history</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full divide-y divide-gray-200">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Token ID</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Phase</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Amount</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                        <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">View</th>
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white divide-y divide-gray-200">
+                      {claimHistory.map((claim, idx) => (
+                        <tr key={idx} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 text-sm font-mono">#{claim.tokenId}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium">
+                              Phase {claim.phase}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm font-semibold text-green-600">
+                            +{(Number(claim.amount) / 1e18).toFixed(2)} TOKEN
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600">
+                            {new Date(claim.timestamp * 1000).toLocaleString()}
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <Link href={`/durian/${claim.tokenId}`}>
+                              <Button size="sm" variant="outline">
+                                <ExternalLink className="h-3 w-3 mr-1" />
+                                View NFT
+                              </Button>
+                            </Link>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               )}
-            </form>
-          </Card>
+            </Card>
+
+            {/* NFT 参与记录 */}
+            <Card className="p-6">
+              <h2 className="text-xl font-bold flex items-center gap-2 mb-4">
+                <Package className="h-6 w-6 text-orange-600" />
+                My NFT Participations
+              </h2>
+              {nftParticipations.length === 0 ? (
+                <div className="text-center py-8 text-gray-500">
+                  <Package className="mx-auto h-12 w-12 text-gray-300 mb-3" />
+                  <p>No participations yet</p>
+                  <p className="text-sm mt-1">Submit phase data to participate in durian supply chain</p>
+                </div>
+              ) : (
+                <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {nftParticipations.map((nft) => (
+                    <Link key={nft.tokenId} href={`/durian/${nft.tokenId}`}>
+                      <Card className="p-4 hover:shadow-lg transition-shadow cursor-pointer border-2 border-transparent hover:border-blue-300">
+                        <div className="flex items-start justify-between mb-3">
+                          <div>
+                            <div className="text-sm text-gray-500">Durian NFT</div>
+                            <div className="text-lg font-bold font-mono">#{nft.tokenId}</div>
+                          </div>
+                          <ExternalLink className="h-4 w-4 text-gray-400" />
+                        </div>
+                        <div className="flex flex-wrap gap-1">
+                          {nft.submittedPhases.map((phase) => (
+                            <span
+                              key={phase}
+                              className="px-2 py-1 bg-green-100 text-green-800 rounded-full text-xs font-medium"
+                            >
+                              P{phase}
+                            </span>
+                          ))}
+                        </div>
+                        <div className="mt-3 text-xs text-gray-500">
+                          Participated in {nft.submittedPhases.length} phase{nft.submittedPhases.length > 1 ? "s" : ""}
+                        </div>
+                      </Card>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </Card>
+          </>
         )}
       </div>
     </div>
   );
-}
-
-
-function short(a: string) {
-  if (!a) return "";
-  return a.slice(0, 6) + "…" + a.slice(-4);
 }
