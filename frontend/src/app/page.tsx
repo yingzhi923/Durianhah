@@ -51,6 +51,19 @@ export default function Home() {
           <p className="text-lg text-gray-500 mt-4">
             From Tree to Table, Verified on Chain.
           </p>
+          
+          {/* Consumer Portal Button */}
+          <div className="mt-8">
+            <Link href="/consumer">
+              <Button className="h-14 px-8 text-lg bg-gradient-to-r from-yellow-500 via-orange-500 to-red-500 hover:from-yellow-600 hover:to-red-600 text-white shadow-lg">
+                <Search className="mr-2 h-5 w-5" />
+                🌟 Consumer Portal - Verify Your Durian
+              </Button>
+            </Link>
+            <p className="text-sm text-gray-500 mt-2">
+              Enter your Token ID to trace the complete journey of your durian
+            </p>
+          </div>
         </div>
 
         {/* Quick Actions */}
@@ -79,7 +92,7 @@ export default function Home() {
             </Card>
           </Link>
 
-          <Link href="/verify">
+          <Link href="/wallet">
             <Card className="p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 hover:border-red-500">
               <Wallet className="h-12 w-12 text-red-600 mb-4" />
               <h3 className="text-xl font-bold mb-2">My Wallet</h3>
@@ -201,15 +214,10 @@ export default function Home() {
           <p className="text-gray-600 mb-8">
             First, connect your wallet and assign role permissions
           </p>
-          <div className="flex justify-center gap-4">
+          <div className="flex justify-center">
             <Link href="/roles">
               <Button size="lg" className="text-lg px-8">
                 Get Started
-              </Button>
-            </Link>
-            <Link href="/track/1">
-              <Button size="lg" variant="outline" className="text-lg px-8">
-                View Demo
               </Button>
             </Link>
           </div>

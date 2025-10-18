@@ -6,8 +6,6 @@ import Link from "next/link";
 import {
   useActiveAccount,
 } from "thirdweb/react";
-import { readContract } from "thirdweb";
-import { supplyChainContract } from "@/constants/contract";
 
 import { Header } from "@/components/header";
 import { Card } from "@/components/ui/card";
@@ -37,60 +35,14 @@ import {
   CartesianGrid,
 } from "recharts";
 
-/** ========== 合约读取的可选适配（按自己合约改签名；读不到就用 mock） ========== */
-const CONTRACT_READERS = {
-  // 总批次数（Phase1 铸造数量）
-  totalBatches: {
-    sig: "function totalBatches() view returns (uint256)",
-    params: [] as any[],
-  },
-  // 近 7 天提交数量
-  last7dSubmissions: {
-    sig: "function last7dSubmissionCount() view returns (uint256)",
-    params: [] as any[],
-  },
-  // 待审核数量（全部阶段总和）
-  pendingVerifications: {
-    sig: "function pendingCount() view returns (uint256)",
-    params: [] as any[],
-  },
-  // 可领取奖励（当前地址）
-  claimableRewards: {
-    sig: "function pendingRewards(address user) view returns (uint256)",
-    params: (addr: string) => [addr],
-  },
-  // 各阶段数量分布 (p1..p5)
-  phaseCounts: {
-    sig: "function phaseCounts() view returns (uint256,uint256,uint256,uint256,uint256)",
-    params: [] as any[],
-  },
-  // 最近活动（如日志事件），这里假设返回结构化数据；若没有就用 mock
-  // 你可以改成 events 查询页
-  // function latestActivities(uint256 n) view returns (tuple(uint8 phase,uint256 tokenId,address user,uint256 ts,string action)[])
+type ActivityRecord = {
+  phase: number;
+  tokenId: number;
+  user: string;
+  ts: string;
+  action: string;
+  status: string;
 };
-
-// --------- Mock 数据（当合约不提供上述方法时使用） ----------
-const mockPhaseCounts = { p1: 38, p2: 31, p3: 27, p4: 22, p5: 18 };
-const mockLast14d = Array.from({ length: 14 }).map((_, i) => {
-  const d = new Date(Date.now() - (13 - i) * 86400000);
-  return {
-    date: d.toISOString().slice(5, 10),
-    submissions: Math.floor(6 + Math.random() * 10),
-  };
-});
-const mockActivities = Array.from({ length: 10 }).map((_, i) => {
-  const phases = [1, 2, 3, 4, 5] as const;
-  const p = phases[Math.floor(Math.random() * phases.length)];
-  const ts = new Date(Date.now() - i * 3600_000);
-  return {
-    phase: p,
-    tokenId: 1700 + Math.floor(Math.random() * 80),
-    user: `0x${(Math.random().toString(16).slice(2) + "00000000000000000000000000000000").slice(0, 40)}`,
-    ts: ts.toISOString(),
-    action: p === 1 ? "Minted" : "Submitted",
-    status: Math.random() > 0.75 ? "Pending" : "Recorded",
-  };
-});
 
 // --------- 小工具 ----------
 const shortAddr = (a: string) => (a ? `${a.slice(0, 6)}...${a.slice(-4)}` : "-");
@@ -106,73 +58,174 @@ export default function DashboardPage() {
   const [pending, setPending] = useState<number>(7);
   const [rewards, setRewards] = useState<number>(0);
 
-  const [phaseCounts, setPhaseCounts] = useState<{ p1: number; p2: number; p3: number; p4: number; p5: number }>(
-    mockPhaseCounts
-  );
-  const [trend14d, setTrend14d] = useState(mockLast14d);
-  const [activities, setActivities] = useState(mockActivities);
+  const [phaseCounts, setPhaseCounts] = useState<{ p1: number; p2: number; p3: number; p4: number; p5: number }>({
+    p1: 0,
+    p2: 0,
+    p3: 0,
+    p4: 0,
+    p5: 0,
+  });
+  const [pendingByPhase, setPendingByPhase] = useState<{ p1: number; p2: number; p3: number; p4: number; p5: number }>({
+    p1: 0,
+    p2: 0,
+    p3: 0,
+    p4: 0,
+    p5: 0,
+  });
+  const [trend14d, setTrend14d] = useState<{ date: string; submissions: number }[]>([]);
+  const [activities, setActivities] = useState<ActivityRecord[]>([]);
 
   const totalSubmissions = useMemo(
     () => phaseCounts.p1 + phaseCounts.p2 + phaseCounts.p3 + phaseCounts.p4 + phaseCounts.p5,
     [phaseCounts]
   );
 
-  // --------- 读取合约（如果有这些函数就显示真实数据） ----------
+  // --------- 🎭 使用 Mock 数据（Demo 版本）----------
   useEffect(() => {
     (async () => {
       setLoading(true);
+      
+      // 模拟加载延迟
+      await new Promise(resolve => setTimeout(resolve, 800));
+
       try {
-        // total batches
-        try {
-          const v = await readContract({
-            contract: supplyChainContract,
-            method: CONTRACT_READERS.totalBatches.sig as any,
-            params: CONTRACT_READERS.totalBatches.params,
-          });
-          setTotalBatches(Number(v));
-        } catch {}
-
-        // last 7d
-        try {
-          const v = await readContract({
-            contract: supplyChainContract,
-            method: CONTRACT_READERS.last7dSubmissions.sig as any,
-            params: CONTRACT_READERS.last7dSubmissions.params,
-          });
-          setLast7d(Number(v));
-        } catch {}
-
-        // pending
-        try {
-          const v = await readContract({
-            contract: supplyChainContract,
-            method: CONTRACT_READERS.pendingVerifications.sig as any,
-            params: CONTRACT_READERS.pendingVerifications.params,
-          });
-          setPending(Number(v));
-        } catch {}
-
-        // rewards (当前地址)
-        if (account?.address) {
-          try {
-            const v = await readContract({
-              contract: supplyChainContract,
-              method: CONTRACT_READERS.claimableRewards.sig as any,
-              params: CONTRACT_READERS.claimableRewards.params(account.address),
-            });
-            setRewards(Number(v));
-          } catch {}
-        }
-
-        // phase counts
-        try {
-          const [a, b, c, d, e] = (await readContract({
-            contract: supplyChainContract,
-            method: CONTRACT_READERS.phaseCounts.sig as any,
-            params: CONTRACT_READERS.phaseCounts.params,
-          })) as [bigint, bigint, bigint, bigint, bigint];
-          setPhaseCounts({ p1: Number(a), p2: Number(b), p3: Number(c), p4: Number(d), p5: Number(e) });
-        } catch {}
+        // Mock 数据
+        const now = Date.now();
+        
+        // 1. 模拟 NFT 总数
+        setTotalBatches(128);
+        
+        // 2. 模拟各阶段数量
+        const mockPhaseMap = { 
+          p1: 128,  // Phase 1: Farming
+          p2: 95,   // Phase 2: Harvest
+          p3: 78,   // Phase 3: Packing
+          p4: 62,   // Phase 4: Logistics
+          p5: 45    // Phase 5: Retail
+        };
+        setPhaseCounts(mockPhaseMap);
+        
+        // 3. 模拟近 7 天提交数量
+        setLast7d(86);
+        
+        // 4. 模拟待审核数量
+        setPending(12);
+        
+        // 5. 模拟各阶段待审核数量
+        const mockPendingMap = { 
+          p1: 0,    // Phase 1 自动验证
+          p2: 3,    // Phase 2 待审核
+          p3: 4,    // Phase 3 待审核
+          p4: 2,    // Phase 4 待审核
+          p5: 3     // Phase 5 待审核（等待时间锁）
+        };
+        setPendingByPhase(mockPendingMap);
+        
+        // 6. 模拟用户奖励
+        setRewards(250.50);
+        
+        // 7. 生成近 14 天趋势（模拟数据）
+        const mockTrend = Array.from({ length: 14 }).map((_, i) => {
+          const d = new Date(now - (13 - i) * 86400000);
+          // 模拟每天的提交量（5-15 之间随机）
+          const baseCount = 8;
+          const variance = Math.floor(Math.random() * 7) - 3;
+          const submissions = Math.max(3, baseCount + variance + (i % 3));
+          
+          return {
+            date: d.toISOString().slice(5, 10),
+            submissions,
+          };
+        });
+        setTrend14d(mockTrend);
+        
+        // 8. 生成最近活动记录（模拟数据）
+        const mockActivities: ActivityRecord[] = [
+          {
+            phase: 5,
+            tokenId: 12845,
+            user: "0xcED19B7c05e11441c7623472C84cdE32Faf69991",
+            ts: new Date(now - 1 * 60 * 60 * 1000).toISOString(),
+            action: "Submitted",
+            status: "Pending",
+          },
+          {
+            phase: 4,
+            tokenId: 12844,
+            user: "0xABCdef123456789ABCdef123456789ABCdef1234",
+            ts: new Date(now - 2 * 60 * 60 * 1000).toISOString(),
+            action: "Submitted",
+            status: "Verified",
+          },
+          {
+            phase: 3,
+            tokenId: 12843,
+            user: "0x123456789ABCdef123456789ABCdef123456789A",
+            ts: new Date(now - 4 * 60 * 60 * 1000).toISOString(),
+            action: "Submitted",
+            status: "Pending",
+          },
+          {
+            phase: 2,
+            tokenId: 12842,
+            user: "0xcED19B7c05e11441c7623472C84cdE32Faf69991",
+            ts: new Date(now - 6 * 60 * 60 * 1000).toISOString(),
+            action: "Submitted",
+            status: "Verified",
+          },
+          {
+            phase: 1,
+            tokenId: 12841,
+            user: "0xDEFabc987654321DEFabc987654321DEFabc9876",
+            ts: new Date(now - 8 * 60 * 60 * 1000).toISOString(),
+            action: "Minted",
+            status: "Verified",
+          },
+          {
+            phase: 5,
+            tokenId: 12840,
+            user: "0x987654321ABCdef987654321ABCdef987654321A",
+            ts: new Date(now - 12 * 60 * 60 * 1000).toISOString(),
+            action: "Submitted",
+            status: "Verified",
+          },
+          {
+            phase: 4,
+            tokenId: 12839,
+            user: "0xcED19B7c05e11441c7623472C84cdE32Faf69991",
+            ts: new Date(now - 18 * 60 * 60 * 1000).toISOString(),
+            action: "Submitted",
+            status: "Pending",
+          },
+          {
+            phase: 3,
+            tokenId: 12838,
+            user: "0xFEDcba098765432FEDcba098765432FEDcba0987",
+            ts: new Date(now - 24 * 60 * 60 * 1000).toISOString(),
+            action: "Submitted",
+            status: "Verified",
+          },
+          {
+            phase: 2,
+            tokenId: 12837,
+            user: "0x135792468ACEbdf135792468ACEbdf135792468A",
+            ts: new Date(now - 30 * 60 * 60 * 1000).toISOString(),
+            action: "Submitted",
+            status: "Pending",
+          },
+          {
+            phase: 1,
+            tokenId: 12836,
+            user: "0xcED19B7c05e11441c7623472C84cdE32Faf69991",
+            ts: new Date(now - 36 * 60 * 60 * 1000).toISOString(),
+            action: "Minted",
+            status: "Verified",
+          },
+        ];
+        setActivities(mockActivities);
+        
+      } catch (e) {
+        console.error("Failed to load dashboard data:", e);
       } finally {
         setLoading(false);
       }
@@ -192,20 +245,19 @@ export default function DashboardPage() {
         {/* 顶部标题 */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-3xl font-bold">Dashboard</h1>
-            <p className="text-gray-600">View statistics, trends and pending verifications.</p>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              Dashboard
+              <span className="text-sm font-normal bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 py-1 rounded-full">
+                🎭 DEMO MODE
+              </span>
+            </h1>
+            <p className="text-gray-600">Demo version: View simulated statistics, trends and pending verifications.</p>
           </div>
           <div className="flex items-center gap-3">
             <Badge variant="secondary" className="flex items-center gap-1">
               <Wallet className="h-4 w-4" />
               {shortAddr(account?.address || "") || "Not connected"}
             </Badge>
-            <Link href="/verify">
-              <Button variant="outline" className="gap-2">
-                <ShieldCheck className="h-4 w-4" />
-                Go to Verification
-              </Button>
-            </Link>
           </div>
         </div>
 
@@ -237,9 +289,9 @@ export default function DashboardPage() {
 
           <Card className="p-5">
             <div className="text-gray-500 text-sm">Claimable Rewards</div>
-            <div className="text-3xl font-bold mt-1">{loading ? "—" : rewards}</div>
+            <div className="text-3xl font-bold mt-1">{loading ? "—" : rewards.toFixed(2)}</div>
             <div className="mt-2 flex items-center gap-2 text-xs text-gray-500">
-              <CheckCircle2 className="h-4 w-4" /> DRT tokens
+              <CheckCircle2 className="h-4 w-4" /> TOKEN balance
             </div>
           </Card>
         </div>
@@ -314,31 +366,23 @@ export default function DashboardPage() {
           </Card>
         </div>
 
-        {/* 待审核（快速入口） */}
+        {/* 待审核统计 */}
         <Card className="p-5">
           <div className="flex items-center justify-between mb-4">
             <div className="font-semibold">Pending Verifications</div>
-            <Link href="/verify">
-              <Button variant="outline" size="sm" className="gap-2">
-                <ShieldCheck className="h-4 w-4" />
-                Review Now
-              </Button>
-            </Link>
           </div>
           <div className="grid md:grid-cols-5 gap-3">
             {[
-              { label: "Farming", phase: 1, count: Math.floor(phaseCounts.p1 * 0.1) },
-              { label: "Harvest", phase: 2, count: Math.floor(phaseCounts.p2 * 0.15) },
-              { label: "Packing", phase: 3, count: Math.floor(phaseCounts.p3 * 0.12) },
-              { label: "Logistics", phase: 4, count: Math.floor(phaseCounts.p4 * 0.08) },
-              { label: "Retail", phase: 5, count: Math.floor(phaseCounts.p5 * 0.1) },
+              { label: "Farming", phase: 1, count: pendingByPhase.p1 },
+              { label: "Harvest", phase: 2, count: pendingByPhase.p2 },
+              { label: "Packing", phase: 3, count: pendingByPhase.p3 },
+              { label: "Logistics", phase: 4, count: pendingByPhase.p4 },
+              { label: "Retail", phase: 5, count: pendingByPhase.p5 },
             ].map((x, i) => (
-              <Link key={i} href={`/verify?phase=${x.phase}`}>
-                <Card className="p-4 hover:shadow-md transition-shadow cursor-pointer">
-                  <div className="text-sm text-gray-500">Phase {x.phase}: {x.label}</div>
-                  <div className="text-2xl font-bold mt-1">{x.count}</div>
-                </Card>
-              </Link>
+              <Card key={i} className="p-4">
+                <div className="text-sm text-gray-500">Phase {x.phase}: {x.label}</div>
+                <div className="text-2xl font-bold mt-1">{loading ? "—" : x.count}</div>
+              </Card>
             ))}
           </div>
         </Card>
