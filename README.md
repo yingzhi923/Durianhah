@@ -100,7 +100,15 @@ This project builds a complete decentralized supply-chain framework consisting o
     npm run dev
     ```
 
-### Glimpse
+### AI Clarification
 
-tbd
+This project, **Durianhah**, was developed as part of a graduate-level Blockchain Systems course.  
+All smart contracts (`RewardToken.sol`, `Durian721.sol`, `SupplyChainManager.sol`) were designed and coded by the project author based on academic and practical blockchain knowledge with the help of AI.  
+
+During development, multiple AI tools were used to accelerate implementation and documentation:
+- **ChatGPT (GPT-5)** — used for system design discussion, Solidity architecture debugging, and documentation drafting.  
+- **GitHub Copilot & Claude Sonnet 4.5 Agent** — assisted in generating most of the frontend code (React + ethers v6) and integration logic.  
+
+All AI-generated outputs were carefully reviewed, modified, and tested by the author before integration to ensure correctness and originality.
+
 
