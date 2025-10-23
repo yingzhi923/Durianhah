@@ -111,4 +111,6 @@ During development, multiple AI tools were used to accelerate implementation and
 
 All AI-generated outputs were carefully reviewed, modified, and tested by the author before integration to ensure correctness and originality.
 
+### Glimpse
 
+<img width="1440" height="900" alt="Image" src="https://github.com/user-attachments/assets/693d1de7-3643-4c8d-8a15-57c262d2c760" />
